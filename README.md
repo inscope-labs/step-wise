@@ -56,6 +56,24 @@ StepWise inverts that model:
 
    Acknowledge that you are operating under StepWise.  
    State that a concrete task is required, then wait for the operator’s task.
+
+
+## Getting Started
+
+1. Copy the full protocol from [`v1/prompt.md`](v1/prompt.md) into your AI system prompt (or the equivalent configuration for your tool).
+
+2. (Optional) Use the short initial-invocation prompt if your tool has a separate system-prompt / custom-instruction field.
+
+3. Start a new conversation and state a concrete task.  
+   Example: “Set up a Python virtual environment and install the dependencies listed in requirements.txt.”
+
+4. The assistant will confirm the task, then begin with safe discovery or baseline steps.  
+   Execute the proposed commands in your own terminal and paste the complete output back.
+
+5. Continue step by step until the objective is verified against agreed completeness criteria.
+
+The assistant never runs commands itself. You remain in full control of the shell at every moment.
+
 ## Execution Model
 
 ```text
