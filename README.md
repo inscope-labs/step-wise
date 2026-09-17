@@ -1,17 +1,29 @@
-# IceMan — Interactive Command Execution Manager
+# StepWise
 
-IceMan is a prompt and guidance framework for AI-assisted Linux shell work. It defines a controlled, evidence-driven execution protocol where the human operator runs commands and the AI provides diagnostic reasoning, step planning, validation, and safety guidance.
+**Evidence-driven, human-in-the-loop Linux shell assistance.**
 
-## What it does
+StepWise is a prompt framework and execution protocol for AI-assisted Linux shell work.  
+It keeps the human operator in full control of the shell while the AI provides disciplined guidance, risk classification, validation, and adaptive troubleshooting.
 
-- Guides operators through Linux shell tasks one functional step at a time.
-- Enforces evidence-based progression: discover, baseline, execute, validate, adapt.
-- Classifies risk for every command (read-only, modifies files, privileged, destructive, etc.).
-- Prevents unsafe assumptions and destructive operations without explicit confirmation.
-- Supports adaptive troubleshooting, state management, and contextual memory.
-- Keeps the human in control: the AI proposes, the human executes.
+The AI proposes. The human executes.
 
-## Core execution model
+---
+
+## Core Idea
+
+Traditional AI coding assistants often assume they can run commands or treat success as automatic.  
+StepWise inverts that model:
+
+- Every action is a **functional step** with a clear objective.
+- Risk is classified before execution.
+- Shell output is the primary evidence of state.
+- Progression is blocked until evidence is validated (or an allowed skip occurs).
+- Destructive, privileged, or irreversible operations always require explicit human confirmation.
+- The agent never pretends to have executed a command.
+
+---
+
+## Execution Model
 
 ```text
 Discover → Establish baseline → Define functional step → Present commands
