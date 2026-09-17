@@ -58,12 +58,6 @@ StepWise inverts that model:
    State that a concrete task is required, then wait for the operator’s task.
 
 
-## Getting Started
-
-1. Copy the full protocol from [`v1/prompt.md`](v1/prompt.md) into your AI system prompt (or the equivalent configuration for your tool).
-
-2. (Optional) Use the short initial-invocation prompt if your tool has a separate system-prompt / custom-instruction field.
-
 3. Start a new conversation and state a concrete task.  
    Example: “Set up a Python virtual environment and install the dependencies listed in requirements.txt.”
 
