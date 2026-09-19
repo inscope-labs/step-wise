@@ -4,6 +4,20 @@ All notable changes to the StepWise protocol are recorded here.
 
 **Versioning policy:** StepWise is pre-release. All changes are tracked as `1.x` (minor/patch) revisions of the same generation, regardless of how large the change is. The project moves to `2.0.0` only once the framework has been fully tested end-to-end (see the pending example transcript in `README.md`). Do not interpret any `1.x` bump below as a stability signal beyond "this changed."
 
+## Unreleased — 1.6.0 (in progress)
+
+**Not a release.** `v1/prompt.md` is still `1.5.0`. Per the plan in `docs/1.6.0-plan/` (section 7.2), the version bumps to `1.6.0` only after the Phase 6 acceptance tests pass. Everything below exists in `v1/utils/`, `v1/specs/`, and `v1/feature/`, but the prompt does not load or use it yet.
+
+- Fixed: `runcopy`'s clipboard bypass failed open. It matched only the exact strings `credential` and `privileged-data`, so the combined label `credential/privileged-data` (unified in 1.5.0), case variants, and any unrecognized label fell through to the copy path. It is now fail-closed: only known non-sensitive labels may copy; sensitive or unrecognized labels bypass with a notice. Repeated `--risk` flags accumulate (a later benign label cannot override an earlier sensitive one), an empty `--risk=` is unrecognized, and `--risk` with no value is an error. Omitting `--risk` keeps the 1.5.0 manual-copy behavior. Self-test extended to cover the combined label and unknown labels.
+- Added: session ledger in `v1/utils/clipcopy.sh` (`sw_session_start`, `runledger`, `sw_ledger_list`, `sw_copy_clip`), extending the existing clipboard abstraction rather than adding a second one. Per-session and append-only, with length-prefixed records so output that mimics record delimiters cannot corrupt parsing. Index grammar: `N`, `A-B`, `N+`, or none for the final entry; invalid or out-of-range input fails safely and copies nothing.
+- Added: output of a step labeled sensitive or unrecognized is never captured to the ledger, and the extractor re-checks the stored label and refuses. Command lines are not recorded.
+- Added: `runledger --copy` for automatic clipboard duplication. Eligibility is decided from the risk label before the command runs, is fail-closed, and never affects terminal display or the exit status. The `AUTO_CLIPBOARD_ENABLED` session state is held by the agent and defined in the feature doc; there is no shell-side flag.
+- Added: draft specs `v1/specs/clipboard/ledger-format.md` and `v1/specs/clipboard/extraction.md`, and draft feature `v1/feature/clipboard.md`.
+- Added: `v1/utils/clipcopy-test.sh`, a hermetic suite (stub clipboard, temporary state directory) covering the bypass, ledger, extraction grammar, and `--copy`.
+- Added: the three-part 1.6.0 implementation plan under `docs/1.6.0-plan/`.
+- Changed: `README.md` documents the fail-closed bypass and the ledger as a preview, and its status line notes that 1.6.0 is in progress. Automatic copy is a deliberate change from 1.5.0's "never automatic"; it stays off by default and inactive until the prompt adopts it.
+- Pending for 1.6.0: restructuring the prompt into the Prompt/Feature/Specs tiers with a feature index (Phase 1); prompt-level adoption of the session state and the `sw:auto-copy/enable` and `sw:auto-copy/disable` commands; `v1/feature/inspection.md`; the contextual-memory fields (Phase 4); the prompt-level acceptance and regression tests (Phase 6); and the example transcript.
+
 ## 1.5.0
 
 - Fixed: the step-header placeholder `` `Step N — <goal>` `` is now an inline code span. Previously, written unfenced, `<goal>` parsed as a bare HTML tag on render and silently disappeared from every step header (verified against the rendered GitHub page).
