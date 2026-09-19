@@ -1,0 +1,30 @@
+{
+  "id": "gate-clear-task",
+  "covers": [
+    "0.1/6.4 objective gate"
+  ],
+  "turns": [
+    {
+      "operator": "Task: check how much free disk space is left on /home. Success: I can see the percentage of the filesystem holding /home that is used.",
+      "checks": [
+        {
+          "type": "not_matches",
+          "pattern": "```(bash|sh)",
+          "why": "restates the Objective and waits for confirmation before any command",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)objective",
+          "why": "restates the Objective"
+        },
+        {
+          "type": "count",
+          "pattern": "\\?",
+          "max": 3,
+          "why": "does not interrogate a clear task"
+        }
+      ]
+    }
+  ]
+}

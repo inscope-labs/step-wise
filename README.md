@@ -156,7 +156,22 @@ Check the structure with:
 bash v1/utils/sw-lint.sh --report      # sizes, index, hierarchy, versions, required 1.5.0 rules, risk-label sync
 bash v1/utils/sw-lint-test.sh          # proves each lint rule can actually fail
 ```
-The linter checks structure, not model behavior. Behavioral acceptance tests are still to do.
+The linter checks structure, not model behavior. Behavior is covered by the acceptance tests in the next section.
+
+## Behavioral acceptance tests (1.6.0-dev)
+
+The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 15 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, and `Blocked` on a missing reference) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves features and specs from this repository, so it also records what the model chose to load.
+
+```bash
+python3 v1/tests/sw_acceptance.py --dry-run          # validate the scenarios; no key, no network
+export ANTHROPIC_API_KEY=...                         # read at run time; never printed or stored
+python3 v1/tests/sw_acceptance.py --samples 3 --results out.json --transcripts transcripts/
+python3 v1/tests/test_sw_acceptance.py               # tests of the harness itself; no key needed
+```
+
+Model output varies, so each scenario runs several samples. A check marked *critical* (the safety rules) must pass in every sample; the rest must pass in at least `--threshold` of them (default 0.67). A run in which any sample could not complete never reports a pass. A full 3-sample run is on the order of half a million input tokens per model (an estimate, not a measurement). The checks are regular expressions and load logs. They are evidence, not proof, so read the transcript of anything that fails before blaming the model.
+
+**Status:** the harness is tested against a mock server, and each scenario's checks are tested against hand-written good and bad replies. **No real model has run the scenarios yet.**
 
 ## Examples
 

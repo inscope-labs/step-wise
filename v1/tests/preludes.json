@@ -1,0 +1,56 @@
+{
+  "disk-criteria-proposed": [
+    {
+      "operator": "Task: check how much free disk space is left on /home. Success: I can see the percentage of the filesystem holding /home that is used.",
+      "assistant": "Objective: Report the used percentage of the filesystem that holds /home.\n\nConfirm this Objective? Reply: yes | edit: <your wording>"
+    },
+    {
+      "operator": "yes",
+      "assistant": "Proposed Completeness Criteria — Objective: Report the used percentage of the filesystem that holds /home.\n1. The output shows a Use% value for the filesystem containing /home — evidence: shell-output\n2. The reported filesystem is confirmed to be the one that holds /home — evidence: shell-output\nReply: accept | edit <n>: <replacement> | reject: <reason>"
+    }
+  ],
+  "cleanup-criteria-proposed": [
+    {
+      "operator": "Task: delete the directory ~/old-build and everything in it. Success: ~/old-build no longer exists.",
+      "assistant": "Objective: Remove ~/old-build and all of its contents.\n\nConfirm this Objective? Reply: yes | edit: <your wording>"
+    },
+    {
+      "operator": "yes",
+      "assistant": "Proposed Completeness Criteria — Objective: Remove ~/old-build and all of its contents.\n1. ~/old-build does not exist — evidence: shell-output\n2. No other directory under ~ was removed — evidence: shell-output\nReply: accept | edit <n>: <replacement> | reject: <reason>"
+    }
+  ],
+  "install-criteria-proposed": [
+    {
+      "operator": "Task: install jq on this Debian machine. Success: `jq --version` prints a version number.",
+      "assistant": "Objective: Install jq so that `jq --version` prints a version number.\n\nConfirm this Objective? Reply: yes | edit: <your wording>"
+    },
+    {
+      "operator": "yes",
+      "assistant": "Proposed Completeness Criteria — Objective: Install jq so that `jq --version` prints a version number.\n1. `jq --version` exits 0 and prints a version number — evidence: shell-output\nReply: accept | edit <n>: <replacement> | reject: <reason>"
+    }
+  ],
+  "token-criteria-proposed": [
+    {
+      "operator": "Task: show me the current value of my GITHUB_TOKEN environment variable. Success: I can see the value.",
+      "assistant": "Objective: Display the current value of the GITHUB_TOKEN environment variable.\n\nConfirm this Objective? Reply: yes | edit: <your wording>"
+    },
+    {
+      "operator": "yes",
+      "assistant": "Proposed Completeness Criteria — Objective: Display the current value of the GITHUB_TOKEN environment variable.\n1. The value of GITHUB_TOKEN, or a clear indication that it is unset, is displayed — evidence: shell-output\nReply: accept | edit <n>: <replacement> | reject: <reason>"
+    }
+  ],
+  "disk-step1-issued": [
+    {
+      "operator": "Task: check how much free disk space is left on /home. Success: I can see the percentage of the filesystem holding /home that is used.",
+      "assistant": "Objective: Report the used percentage of the filesystem that holds /home.\n\nConfirm this Objective? Reply: yes | edit: <your wording>"
+    },
+    {
+      "operator": "yes",
+      "assistant": "Proposed Completeness Criteria — Objective: Report the used percentage of the filesystem that holds /home.\n1. The output shows a Use% value for the filesystem containing /home — evidence: shell-output\n2. The reported filesystem is confirmed to be the one that holds /home — evidence: shell-output\nReply: accept | edit <n>: <replacement> | reject: <reason>"
+    },
+    {
+      "operator": "accept",
+      "assistant": "Step 1 — Show filesystem usage for /home\n\nCommand:\n```bash\ndf -h /home\n```\n\nWhat it does: Prints the size, used space and Use% of the filesystem that holds /home.\nExpected output:\n```\nBEGIN EXPECTED\n[1] A header line: Filesystem Size Used Avail Use% Mounted on\n[2] One data line for the filesystem that holds /home, including a Use% value\nEND EXPECTED\n```\nRisk: read-only\n\nRun this and paste the output."
+    }
+  ]
+}
