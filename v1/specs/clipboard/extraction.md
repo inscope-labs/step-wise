@@ -32,7 +32,7 @@ index    = [1-9][0-9]{0,8}    ; positive, no leading zeros, at most 9 digits
 | `12-15` | entries 12, 13, 14, 15 |
 | `18+` | entry 18 through the final entry |
 
-At most one `spec` argument is accepted.
+At most one `spec` argument is accepted. "Empty" means **no argument**. An explicitly passed empty string (for example an unset shell variable expanded as `sw_copy_clip "$x"`) is a grammar error, so a scripting mistake can never silently copy the wrong entry.
 
 ## 3. Validation cases
 
@@ -49,6 +49,7 @@ Every case below **fails safely**: a message on stderr, a non-zero status, and *
 | `1000000000` | error | more than 9 digits |
 | `007` | error | leading zeros rejected (avoids octal ambiguity) |
 | `abc`, `1.5`, `1,2`, `5 6` | error | not in the grammar |
+| `""` (explicit empty string) | error | see the note under the grammar |
 | `3` when entry 3 is absent, `bad` or `dup` | error naming the index | only `ok` records are extractable |
 | `1-5` where any entry in the range is not `ok` | error naming the index | all-or-nothing |
 | any spec on an empty ledger | error | nothing to extract |
@@ -60,7 +61,7 @@ Every case below **fails safely**: a message on stderr, a non-zero status, and *
 - **Single entry:** the entry's output lines only, exactly as stored.
 - **Multiple entries:** each entry is preceded by a separator line so the paste-back keeps its provenance:
   `### STEP <n> - <step> (exit <status>)`.
-- Withheld entries (ledger-format §4.2) yield their one-line placeholder, never content.
+- Withheld entries (ledger-format §4.2) are refused under section 5. They hold no content, only a placeholder.
 
 ## 5. Sensitive and unrecognized entries (defense in depth)
 
