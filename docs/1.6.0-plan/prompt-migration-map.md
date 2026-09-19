@@ -57,4 +57,4 @@ The `Risk:` line of the step format is also unchanged.
 
 ## What this does not prove
 
-The linter (`v1/utils/sw-lint.sh`) confirms the required rule strings in `v1/utils/prompt-invariants.txt` are still present. It cannot confirm that a model still behaves the same way. That needs the Phase 6 acceptance tests run against a model, which are not done yet.
+The linter (`v1/utils/sw-lint.sh`) confirms the required rule strings in `v1/utils/prompt-invariants.txt` are still present. It cannot confirm that a model still behaves the same way. The scenarios in `v1/tests/` are written to test exactly that against a model, but no model has run them yet.
