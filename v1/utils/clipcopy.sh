@@ -158,7 +158,8 @@ runcopy() {
 # Spec: v1/specs/clipboard/ledger-format.md and extraction.md.
 #
 #   sw_session_start                       # once per shell; exports SW_SESSION_ID
-#   runledger [--objective=..] [--step=..] [--risk=..] -- <command> [args...]
+#   runledger [--objective=..] [--step=..] [--risk=..] [--copy] -- <command> [args...]
+#                                          # --copy = automatic clipboard duplication
 #   sw_ledger_list                         # inspect: index, exit, risk, step
 #   sw_copy_clip [--stdout] [spec]         # spec: N | A-B | N+ | (none = final)
 #
@@ -346,9 +347,10 @@ _sw_ledger_append() {
 }
 
 runledger() {
-  local objective="-" step="-" risk="" risk_set=0 v cls="eligible" reason=""
+  local objective="-" step="-" risk="" risk_set=0 v cls="eligible" reason="" copy=0 do_copy=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --copy)        copy=1; shift ;;
       --objective=*) objective="${1#--objective=}"; shift ;;
       --step=*)      step="${1#--step=}"; shift ;;
       --risk=*)
@@ -373,9 +375,34 @@ runledger() {
 
   [[ "$risk_set" -eq 1 ]] && cls="$(_sw_risk_class "$risk")"
 
+  # Automatic clipboard duplication (--copy). Eligibility is decided HERE, before
+  # the command runs, from the risk label alone (plan 3.2). Fail-closed: a
+  # missing, sensitive, or unrecognized label means no copy, whatever the caller
+  # asked for. Terminal display is never affected. This is duplication only;
+  # nothing here treats clipboard state as authorization to execute anything.
+  if [[ "$copy" -eq 1 ]]; then
+    if [[ "$risk_set" -eq 0 ]]; then
+      _sw_notice "Clipboard copy bypassed: --copy requires a --risk label (fail-closed). Output is displayed only, not copied."
+    elif [[ "$cls" == "sensitive" ]]; then
+      _sw_notice "Clipboard copy bypassed: command classified as '$risk' risk. Output is displayed only, not copied."
+    elif [[ "$cls" == "unrecognized" ]]; then
+      _sw_notice "Clipboard copy bypassed: unrecognized risk label '$risk' (fail-closed). Output is displayed only, not copied."
+    else
+      do_copy=1
+    fi
+  fi
+
   local ledger status dir tmp
   if ! ledger="$(_sw_active_ledger)"; then
     _sw_notice "Ledger not written. The command runs normally."
+    if [[ "$do_copy" -eq 1 ]]; then
+      tmp="$(mktemp)" || { "$@"; return $?; }
+      "$@" 2>&1 | tee "$tmp"
+      status=${PIPESTATUS[0]}
+      _sw_clipboard_copy < "$tmp"
+      rm -f "$tmp"
+      return "$status"
+    fi
     "$@"
     return $?
   fi
@@ -395,6 +422,7 @@ runledger() {
   "$@" 2>&1 | tee "$tmp"
   status=${PIPESTATUS[0]}
   _sw_ledger_append "$ledger" "$objective" "$step" "$status" "$risk" "" "$tmp"
+  [[ "$do_copy" -eq 1 ]] && _sw_clipboard_copy < "$tmp"
   rm -f "$tmp"
   return "$status"
 }

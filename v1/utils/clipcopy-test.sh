@@ -233,5 +233,54 @@ quiet runledger --risk=read-only --step="listed step" -- true
 sw_ledger_list 2>/dev/null | grep -q "listed step" && ok "list shows step titles" || bad "list shows step titles"
 
 # ---------------------------------------------------------------------------
+section "Automatic clipboard duplication (runledger --copy)"
+new_session
+
+rm -f "$CLIP"; out="$(runledger --copy --risk=read-only --step=auto -- printf 'a\nb\n' 2>/dev/null)"; rc=$?
+check "--copy eligible: terminal display intact" "$(printf 'a\nb')" "$out"
+check "--copy eligible: output duplicated to clipboard" "$(printf 'a\nb')" "$(clip)"
+check "--copy eligible: exit status preserved" 0 "$rc"
+check "--copy eligible: clipboard equals the ledger entry" "$(clip)" "$(sw_copy_clip --stdout 2>/dev/null)"
+
+rm -f "$CLIP"; quiet runledger --risk=read-only -- echo nocopy
+check "eligible without --copy: default is manual, nothing copied" "<none>" "$(clip)"
+
+rm -f "$CLIP"; runledger --copy --risk=network -- sh -c 'echo out; echo err >&2; exit 3' >/dev/null 2>&1; rc=$?
+check "--copy on a failing step: status preserved" 3 "$rc"
+check "--copy on a failing step: stdout+stderr copied" "$(printf 'err\nout')" "$(clip | sort)"
+
+section "--copy is fail-closed (decided from the label, before the command runs)"
+for l in credential/privileged-data credential privileged-data Credential secret; do
+  rm -f "$CLIP"; out="$(runledger --copy --risk="$l" -- echo AUTO_SECRET 2>/dev/null)"
+  check "--copy --risk='$l': still displays" AUTO_SECRET "$out"
+  check "--copy --risk='$l': not copied" "<none>" "$(clip)"
+done
+for l in bogus ""; do
+  rm -f "$CLIP"; quiet runledger --copy --risk="$l" -- echo x
+  check "--copy --risk='$l' (unrecognized): not copied" "<none>" "$(clip)"
+done
+rm -f "$CLIP"; quiet runledger --copy --risk=read-only --risk=credential -- echo x
+check "--copy: later benign label cannot override sensitive" "<none>" "$(clip)"
+rm -f "$CLIP"; err="$(runledger --copy -- echo x 2>&1 >/dev/null)"
+check "--copy without any --risk: not copied" "<none>" "$(clip)"
+[[ "$err" == *"requires a --risk label"* ]] && ok "--copy without --risk explains why" || bad "--copy without --risk explains why" "$err"
+grep -rq AUTO_SECRET "$STEPWISE_HOME" && bad "auto-copy step leaked secret to disk" || ok "sensitive --copy step: secret not on disk either"
+
+section "--copy without a session, and clipboard failures"
+saved="$SW_SESSION_ID"; unset SW_SESSION_ID
+rm -f "$CLIP"; out="$(runledger --copy --risk=read-only -- echo nosess 2>/dev/null)"
+check "no session + --copy: displays" nosess "$out"
+check "no session + --copy: still copies (copy does not depend on the ledger)" nosess "$(clip)"
+rm -f "$CLIP"; quiet runledger --copy --risk=credential -- echo nosess
+check "no session + sensitive + --copy: not copied" "<none>" "$(clip)"
+SW_SESSION_ID="$saved"
+
+( _sw_clipboard_copy() { cat >/dev/null; return 1; }
+  runledger --copy --risk=read-only -- sh -c 'echo shown; exit 4' >/dev/null 2>&1
+  exit $? ); check "clipboard backend failure never changes the command's exit status" 4 "$?"
+out="$( ( _sw_clipboard_copy() { cat >/dev/null; return 1; }; runledger --copy --risk=read-only -- echo shown 2>/dev/null ) )"
+check "clipboard backend failure never suppresses terminal display" shown "$out"
+
+# ---------------------------------------------------------------------------
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
