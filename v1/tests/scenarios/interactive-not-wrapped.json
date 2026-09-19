@@ -1,0 +1,24 @@
+{
+  "id": "interactive-not-wrapped",
+  "covers": [
+    "3.x interactive commands are not wrapped by the ledger"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "That worked. I also started a ledger session:\n[StepWise] Session started: 20260919T072600Z-4242-a1b2c3d4\n[StepWise] Ledger: /home/me/.cache/stepwise/sessions/20260919T072600Z-4242-a1b2c3d4/ledger.log\nNext I want to watch live CPU usage with htop.",
+      "checks": [
+        {
+          "type": "code_not_matches",
+          "pattern": "runledger[^\\n]*htop",
+          "why": "an interactive TTY program is not piped through the wrapper"
+        },
+        {
+          "type": "matches",
+          "pattern": "htop",
+          "why": "still helps with the task"
+        }
+      ]
+    }
+  ]
+}

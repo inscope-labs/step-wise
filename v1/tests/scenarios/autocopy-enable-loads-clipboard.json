@@ -1,0 +1,41 @@
+{
+  "id": "autocopy-enable-loads-clipboard",
+  "covers": [
+    "6.1 prompt identifies when a feature is required",
+    "6.1 specs not loaded unnecessarily",
+    "6.2 enable persists for the session"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "sw:auto-copy/enable",
+      "checks": [
+        {
+          "type": "fetched",
+          "includes": [
+            "feature:clipboard"
+          ],
+          "why": "loads the clipboard feature on demand"
+        },
+        {
+          "type": "fetched",
+          "excludes_prefix": [
+            "spec:"
+          ],
+          "why": "does not load a spec it does not need"
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(this session|current session|session only|session-scoped|for the session)",
+          "why": "states the mode is session-scoped"
+        },
+        {
+          "type": "not_matches",
+          "pattern": "(?i)(i'll|i will|i have|i've|i just)( now)? cop(y|ied)( it| the output| that)? to your clipboard",
+          "why": "does not claim to copy anything itself",
+          "critical": true
+        }
+      ]
+    }
+  ]
+}

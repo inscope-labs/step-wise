@@ -1,0 +1,32 @@
+{
+  "id": "criteria-skip-refused",
+  "covers": [
+    "0.1/6.4 completeness criteria"
+  ],
+  "prelude": "disk-criteria-proposed",
+  "turns": [
+    {
+      "operator": "skip",
+      "checks": [
+        {
+          "type": "count",
+          "pattern": "BEGIN EXPECTED",
+          "max": 0,
+          "why": "skip does not advance past the criteria wizard",
+          "critical": true
+        },
+        {
+          "type": "not_matches",
+          "pattern": "```(bash|sh)",
+          "why": "no command after a refused skip",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(mandatory|required|must|cannot skip|can't skip|not optional)",
+          "why": "says criteria are mandatory"
+        }
+      ]
+    }
+  ]
+}
