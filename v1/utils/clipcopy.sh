@@ -7,6 +7,12 @@
 #   runcopy --no-copy -- <command> [args...]    # per-invocation skip, no copy
 #   runcopy --risk=credential -- <command> ...  # auto-bypasses copy, shows notice
 #   runcopy --risk=privileged-data -- <command> ...
+#   runcopy --risk=credential/privileged-data -- <command> ...   # combined label
+#
+# Risk labels are fail-closed: only known non-sensitive labels (read-only,
+# creates, modifies, network, destructive, ...) permit a copy. Sensitive labels
+# and any unrecognized label bypass the copy. Omitting --risk entirely means
+# the operator wrapped the command by hand and asked for a copy (1.5.0 behavior).
 #
 # Output is ALWAYS shown on the terminal, exactly as it would be without this
 # wrapper. Clipboard copy is strictly additive and never replaces display.
@@ -18,6 +24,37 @@
 _sw_notice() {
   # Notices go to stderr so they never contaminate piped stdout.
   echo "[StepWise] $*" >&2
+}
+
+# --- Risk classification (fail-closed) ---------------------------------------
+# A label is copy-eligible ONLY if every comma-separated part of it is a known
+# non-sensitive label. Anything sensitive, empty, or unrecognized is treated as
+# "do not copy". This is deliberate: a typo, a case variant, or a label this
+# script has never heard of must never result in a copy.
+
+_sw_norm_label() {
+  # lowercase; spaces/underscores -> hyphens; trim leading/trailing hyphens.
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr ' _' '--' | sed -e 's/^-*//' -e 's/-*$//'
+}
+
+_sw_risk_class() {
+  # Prints one of: eligible | sensitive | unrecognized
+  local raw="$1" part norm result="eligible"
+  while IFS= read -r part; do
+    norm="$(_sw_norm_label "$part")"
+    case "$norm" in
+      *credential*|*privileged-data*|*secret*|*sensitive*)
+        printf 'sensitive\n'
+        return 0
+        ;;
+      read-only|creates|creates-files|modifies|modifies-files|changes-project-state|privileged|network|destructive|difficult-to-reverse|irreversible|eligible)
+        : ;;
+      *)
+        result="unrecognized"
+        ;;
+    esac
+  done <<< "$(printf '%s' "$raw" | tr ',' '\n')"
+  printf '%s\n' "$result"
 }
 
 _sw_clipboard_copy() {
@@ -42,14 +79,26 @@ _sw_clipboard_copy() {
 
 runcopy() {
   local risk=""
+  local risk_set=0
   local no_copy=0
+  local v
 
   # Parse leading flags; everything after -- is the command to run.
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --risk=*)
-        risk="${1#--risk=}"
+        # Labels accumulate across repeated --risk flags, so a later benign
+        # label can never override an earlier sensitive one. An explicitly
+        # empty value is kept as a sentinel and classifies as unrecognized.
+        v="${1#--risk=}"
+        [[ -z "$v" ]] && v="<empty>"
+        risk="${risk:+$risk,}$v"
+        risk_set=1
         shift
+        ;;
+      --risk)
+        _sw_notice "runcopy: --risk requires a value (use --risk=<label>)."
+        return 2
         ;;
       --no-copy)
         no_copy=1
@@ -70,13 +119,22 @@ runcopy() {
     return 2
   fi
 
-  # Automatic bypass: credential- or privileged-data-classified steps never
-  # get copied, regardless of operator request. This check cannot be
-  # overridden by --no-copy being absent; it is independent of operator intent.
-  if [[ "$risk" == "credential" || "$risk" == "privileged-data" ]]; then
-    _sw_notice "Clipboard copy bypassed: command classified as '$risk' risk. Output is displayed only, not copied."
-    "$@"
-    return $?
+  # Automatic bypass (fail-closed). Sensitive labels, and any label this script
+  # does not recognize, never get copied, regardless of operator request. This
+  # check is independent of --no-copy and cannot be overridden by it.
+  if [[ "$risk_set" -eq 1 ]]; then
+    case "$(_sw_risk_class "$risk")" in
+      sensitive)
+        _sw_notice "Clipboard copy bypassed: command classified as '$risk' risk. Output is displayed only, not copied."
+        "$@"
+        return $?
+        ;;
+      unrecognized)
+        _sw_notice "Clipboard copy bypassed: unrecognized risk label '$risk' (fail-closed). Output is displayed only, not copied."
+        "$@"
+        return $?
+        ;;
+    esac
   fi
 
   # Per-invocation skip requested by the operator.
@@ -117,6 +175,18 @@ sw_selftest_clipboard_bypass() {
     echo "FAIL: expected display output missing. Got: $display"
     return 1
   fi
+
+  # Fail-closed: the protocol's combined label and unknown labels must bypass too.
+  local label
+  for label in "credential/privileged-data" "Credential" "secret" "bogus-label" ""; do
+    out="$(runcopy --risk="$label" -- echo "FAKE_SECRET=12345" 2>&1 1>/dev/null)"
+    if [[ "$out" == *"Clipboard copy bypassed"* ]]; then
+      echo "PASS: bypass fired for --risk='$label'."
+    else
+      echo "FAIL: no bypass for --risk='$label'. Got: $out"
+      return 1
+    fi
+  done
 }
 
 # When executed directly (not sourced), run the self-test.
