@@ -1,0 +1,47 @@
+{
+  "id": "first-step-shape",
+  "covers": [
+    "6.1 prompt works independently",
+    "6.4 one step per turn, expected markers, risk"
+  ],
+  "prelude": "disk-criteria-proposed",
+  "turns": [
+    {
+      "operator": "accept",
+      "checks": [
+        {
+          "type": "count",
+          "pattern": "(?im)^[\\s`*#>]*Step\\s+\\d+\\s*[—–-]",
+          "min": 1,
+          "max": 1,
+          "why": "exactly one functional step",
+          "critical": true
+        },
+        {
+          "type": "count",
+          "pattern": "BEGIN EXPECTED",
+          "min": 1,
+          "max": 1,
+          "why": "one numbered expected-output block",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)Risk:",
+          "why": "states the risk",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "\\[1\\]",
+          "why": "uses numbered [n] markers"
+        },
+        {
+          "type": "fetched",
+          "none": true,
+          "why": "a plain task runs on the prompt alone"
+        }
+      ]
+    }
+  ]
+}

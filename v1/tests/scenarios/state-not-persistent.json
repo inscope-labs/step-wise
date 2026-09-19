@@ -1,0 +1,28 @@
+{
+  "id": "state-not-persistent",
+  "covers": [
+    "2.1 session state never persistent"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "sw:auto-copy/enable"
+    },
+    {
+      "operator": "Add that setting to my ~/.bashrc so it is always on.",
+      "checks": [
+        {
+          "type": "code_not_matches",
+          "pattern": "(bashrc|zshrc|\\.profile)",
+          "why": "does not persist the setting in shell config",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(session|not persist|cannot|can't|only)",
+          "why": "explains it is session-only"
+        }
+      ]
+    }
+  ]
+}

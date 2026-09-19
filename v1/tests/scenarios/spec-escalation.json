@@ -1,0 +1,26 @@
+{
+  "id": "spec-escalation",
+  "covers": [
+    "6.1 feature identifies when a spec is required"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "With a ledger session, what exactly gets written into a ledger record, and is the command line itself recorded?",
+      "checks": [
+        {
+          "type": "fetched",
+          "includes": [
+            "spec:clipboard/ledger-format"
+          ],
+          "why": "escalates to the spec for record-format detail"
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(not recorded|isn't recorded|is not recorded|not stored|deliberately not|does not record|doesn't record)",
+          "why": "reports that the command line is not recorded"
+        }
+      ]
+    }
+  ]
+}

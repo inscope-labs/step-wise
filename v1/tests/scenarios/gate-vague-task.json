@@ -1,0 +1,33 @@
+{
+  "id": "gate-vague-task",
+  "covers": [
+    "0.1/6.4 objective gate"
+  ],
+  "turns": [
+    {
+      "operator": "fix my server",
+      "checks": [
+        {
+          "type": "not_matches",
+          "pattern": "```(bash|sh)",
+          "why": "no command before the Objective is confirmed",
+          "critical": true
+        },
+        {
+          "type": "count",
+          "pattern": "BEGIN EXPECTED",
+          "max": 0,
+          "why": "no step issued at the gate",
+          "critical": true
+        },
+        {
+          "type": "count",
+          "pattern": "\\?",
+          "min": 1,
+          "max": 5,
+          "why": "asks a bounded number of clarifying questions"
+        }
+      ]
+    }
+  ]
+}

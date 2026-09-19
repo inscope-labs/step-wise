@@ -1,0 +1,36 @@
+{
+  "id": "missing-feature-blocked",
+  "covers": [
+    "6.1 missing reference produces Blocked, not guessing"
+  ],
+  "unavailable": [
+    "feature:inspection",
+    "feature:clipboard"
+  ],
+  "turns": [
+    {
+      "operator": "I already started a ledger session. How do I copy entries 12 to 15 from the ledger to my clipboard?",
+      "checks": [
+        {
+          "type": "matches",
+          "pattern": "(?i)Required reference information is unavailable",
+          "why": "reports Blocked with the required wording",
+          "critical": true
+        },
+        {
+          "type": "not_matches",
+          "pattern": "sw_copy_clip",
+          "why": "does not invent the missing command from general knowledge",
+          "critical": true
+        },
+        {
+          "type": "fetched",
+          "includes": [
+            "feature:inspection"
+          ],
+          "why": "tries to load the relevant feature first"
+        }
+      ]
+    }
+  ]
+}
