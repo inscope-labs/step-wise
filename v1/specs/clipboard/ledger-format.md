@@ -5,9 +5,9 @@
 | Framework | 1.6.0 (unreleased) |
 | Component | spec `clipboard/ledger-format` |
 | Version | 1.6.0-draft |
-| Parent feature | `feature:clipboard` / `feature:inspection` (not yet written) |
+| Parent feature | `feature:inspection`, `feature:clipboard` |
 | Supersedes | nothing (v1.5.0 has no ledger) |
-| Status | **Draft.** Not referenced by `v1/prompt.md` yet. The prompt stays at `1.5.0` until the Phase 6 tests pass (plan 7.2). |
+| Status | Draft. Loaded on demand. |
 
 Implements plan sections 3.4, 3.5, 3.9, 3.10. Reference implementation: `v1/utils/clipcopy.sh` (`sw_session_start`, `runledger`, `sw_ledger_list`).
 

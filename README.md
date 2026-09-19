@@ -9,7 +9,7 @@ The AI proposes. The human executes.
 
 **Status:** `1.5.0` — internal pre-release. All `1.x` releases are minor/patch revisions of the same generation; the framework moves to `2.0.0` only once it has been fully tested end-to-end. See [`CHANGELOG.md`](CHANGELOG.md) for version history.
 
-**In progress:** `1.6.0` (see the *Unreleased* section of the changelog). `v1/prompt.md` is still `1.5.0`. The session-ledger utilities described under [Session Ledger (1.6.0 preview)](#session-ledger-160-preview) exist and are tested, but the prompt does not use them yet, so the assistant will not emit those commands.
+**In progress:** `1.6.0` (see the *Unreleased* section of the changelog). On this branch `v1/prompt.md` is `1.6.0-dev`: the mandatory prompt plus on-demand features and specs, described under [Context Tiers (1.6.0-dev)](#context-tiers-160-dev). It is not released, and it is not the version served from `main` until it is merged.
 
 ---
 
@@ -104,7 +104,7 @@ bash v1/utils/clipcopy-test.sh
 
 ## Session Ledger (1.6.0 preview)
 
-> **Preview.** Implemented and tested in `v1/utils/clipcopy.sh`, but not yet part of the protocol in `v1/prompt.md`. Design: [`docs/1.6.0-plan/`](docs/1.6.0-plan/), [`v1/specs/clipboard/`](v1/specs/clipboard/), [`v1/feature/clipboard.md`](v1/feature/clipboard.md).
+> **Preview.** Implemented and tested in `v1/utils/clipcopy.sh`. The `1.6.0-dev` prompt loads it on demand through `feature:clipboard` and `feature:inspection`; nothing here is released. Design: [`docs/1.6.0-plan/`](docs/1.6.0-plan/), [`v1/specs/clipboard/`](v1/specs/clipboard/), [`v1/feature/`](v1/feature/).
 
 The ledger keeps each step's raw output outside the chat, so you can inspect it and copy exactly what you choose. Running a command and copying its output are separate operations.
 
@@ -136,6 +136,27 @@ Properties worth knowing:
 - Each shell has its own session (`SW_SESSION_ID`), stored under `~/.cache/stepwise/sessions/<id>/` with `0700`/`0600` permissions. There is no global ledger.
 - A ledger failure never blocks the command, and never changes what you see or its exit status.
 - Limits: output is captured as combined stdout and stderr through a pipe, like `runcopy`, so interactive programs, pagers, and terminal colors are not supported. A label describes the *command*, so it cannot tell you a non-sensitive command printed something sensitive — inspect an entry before extracting it.
+
+## Context Tiers (1.6.0-dev)
+
+The mandatory prompt stays bounded, and capability detail loads only when a task needs it.
+
+```text
+v1/prompt.md        Tier 1  always loaded: the operating contract, gates, safety, validation, feature index
+v1/feature/*.md     Tier 2  on demand: clipboard, inspection, context, execution, logging
+v1/specs/*/*.md     Tier 3  on demand, one section at a time: ledger format, extraction grammar, loading rules, size limits
+```
+
+Loading is one-way (Prompt → Feature → Spec) and smallest-first. Precedence is Prompt > Feature > Specs, so a lower tier can never relax a rule in the prompt. Features and specs resolve relative to where the prompt was loaded from, so a pinned copy of the prompt loads pinned references. If a needed reference cannot be loaded, the assistant says so and stops rather than guessing.
+
+The mandatory prompt did not shrink: it is about 5% larger than 1.5.0 because the tier machinery costs more than the moved text saved. What tiers buy is that the new 1.6.0 capability (roughly 30 KB) stays out of it. Numbers and limits: [`v1/specs/context/size-limits.md`](v1/specs/context/size-limits.md). What moved where, paragraph by paragraph: [`docs/1.6.0-plan/prompt-migration-map.md`](docs/1.6.0-plan/prompt-migration-map.md).
+
+Check the structure with:
+```bash
+bash v1/utils/sw-lint.sh --report      # sizes, index, hierarchy, versions, required 1.5.0 rules, risk-label sync
+bash v1/utils/sw-lint-test.sh          # proves each lint rule can actually fail
+```
+The linter checks structure, not model behavior. Behavioral acceptance tests are still to do.
 
 ## Examples
 

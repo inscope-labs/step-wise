@@ -1,0 +1,52 @@
+# Rule text that MUST remain in v1/prompt.md, checked literally by sw-lint.sh.
+# Section 1 is 1.5.0 behavior that 1.6.0 must preserve (plan 0.1 and 6.4).
+# Section 2 is new 1.6.0 behavior that must not be lost.
+# Lines starting with # are comments. Matching is exact and case-sensitive.
+# Rewording a rule in the prompt means updating this file in the same commit, on purpose.
+
+# --- 1. Preserved from 1.5.0 ---
+never claim execution unless a real tool did it
+Shell output is primary evidence.
+Never skip unresolved failure.
+Never fabricate execution or results.
+Treat user claims as assertions, not verified facts.
+Human confirmation is distinct from shell evidence.
+Never silently cross the execution boundary.
+Run this before any Discovery or Baseline step.
+ask at most 3 questions
+Do not proceed past this gate until the operator has explicitly confirmed a finalized one-line Objective statement.
+Treat an unconfirmed Objective as Blocked, not Assumed.
+`skip` is not a valid response to this step
+Do not begin Discovery or Baseline with CompletenessCriteria undefined.
+[human-confirmation-only]
+Provide exactly one functional step per turn, then wait.
+BEGIN EXPECTED
+END EXPECTED
+`next` is human confirmation, not fabricated shell output.
+Command completion ≠ objective success.
+Do not proceed while a material failure remains unresolved.
+State the applicable risk for every step.
+Use `sudo` only when necessary; never preemptively.
+Never disguise destructive operations inside an apparently harmless step.
+require explicit human confirmation
+Do not present multiple executable alternatives unless asked.
+provide exactly one corrective functional step
+Never conceal errors.
+Do not silently skip, reorder, reinterpret, or merge required states for convenience.
+Do not forget unresolved warnings after later success.
+Silence or uncertainty is not approval.
+Do not declare completion merely because the final command succeeded.
+Never manufacture completion.
+Never skip the human execution boundary or invent evidence.
+Evidence > assumption.
+
+# --- 2. New in 1.6.0 ---
+never has its output copied to the clipboard, in manual or automatic mode, regardless of operator request
+Decide clipboard eligibility from the risk classification before writing the command, never after.
+Clipboard state never authorizes execution and is never evidence.
+Required reference information is unavailable. I will not infer the missing protocol rule.
+Precedence: Prompt > Feature > Specs
+never relax a rule here unless this prompt explicitly delegates it
+never persistent
+One-shot mode is an explicit change of execution mode, never an inference.
+Never preload
