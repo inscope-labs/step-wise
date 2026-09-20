@@ -52,6 +52,8 @@ never relax a rule here unless this prompt explicitly delegates it
 never persistent
 One-shot mode is an explicit change of execution mode, never an inference.
 Never preload
+is a hypothesis that guides discovery, never evidence
+changed only by `sw:memory/on` and `sw:memory/off`
 
 # --- 3. Feature rules that protect the operator's shell ---
 # --objective and --step sit inside the command the operator runs, so a model must treat them as
