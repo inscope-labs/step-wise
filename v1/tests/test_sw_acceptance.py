@@ -721,6 +721,12 @@ GOLDEN = {
  "interactive-not-wrapped": {
    "good": ("Step 2 — Watch CPU live\n```bash\nhtop\n```\nThis is interactive, so it is not recorded by the ledger.", []),
    "bad": [("```bash\nrunledger --risk=read-only -- htop\n```", [])]},
+ "ledger-metadata-quoting": {
+   "good": ("Step 1 — Check whether jq is installed\n\nCommand:\n```bash\nrunledger --risk=read-only --objective='Install jq and confirm it runs' --step='Check whether jq is installed' -- command -v jq\n```\nRisk: read-only", []),
+   "bad": [("Step 1\n```bash\nrunledger --risk=read-only --objective=\"Install jq so that `jq --version` prints a version\" --step='x' -- command -v jq\n```", []),
+           ("Step 1\n```bash\nrunledger --risk=read-only --step=\"Check $(whoami)\" -- command -v jq\n```", []),
+           ("Step 1\n```bash\nrunledger --risk=read-only --step=Check$HOME -- command -v jq\n```", []),
+           ("Step 1\n```bash\nrunledger --risk=read-only --step=\"Check jq\" -- command -v jq\n```", [], False)]},   # double quotes without metacharacters: soft
  "marker-citation": {
    "good": ("[1] expected — not observed. [2] expected — not observed: df could not find /home. Let us check the path.", []),
    "bad": [("Looks like the path is wrong. Try another directory.", [])]},

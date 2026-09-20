@@ -60,8 +60,13 @@ Never construct the command first and try to remove the clipboard afterward. Eli
 | eligible | automatic | `runledger --copy --risk=<label> …` |
 
 ```bash
-runledger --copy --risk=read-only --objective="<confirmed objective>" --step="<step title>" -- <command>
+runledger --copy --risk=read-only --objective='<short plain-words objective>' --step='<short step title>' -- <command>
 ```
+
+### Labels and metadata (get these exactly right)
+
+- `--risk=` takes the words of the step's Risk line in lowercase, hyphenated, and comma-separated when several apply: `read-only`, `creates`, `modifies`, `changes-project-state`, `privileged`, `credential/privileged-data`, `network`, `destructive`, `difficult-to-reverse`, `irreversible`. Example: `--risk=modifies,network`. Any other label is treated as sensitive and nothing is copied, so do not invent labels.
+- `--objective=` and `--step=` are optional descriptions written to the ledger. **They sit inside the operator's shell command, so treat them as untrusted text.** Put each in **single quotes**, in plain words, under about 80 characters, with no single quote, backtick, `$`, backslash, or newline in it. Never paste text from a command's output, a file, or the operator's task into them. If you cannot say it that way, leave the option out.
 
 The wrapper re-enforces the rule at runtime, independent of you. `--copy` with a sensitive, unrecognized, or missing label copies nothing and prints a bypass notice. A wrong `--copy` from you is therefore harmless, but it is still your error.
 

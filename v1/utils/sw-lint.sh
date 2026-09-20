@@ -178,12 +178,16 @@ if [[ ! -f "$INVARIANTS" ]]; then
   err "invariants list not found: $INVARIANTS"
 else
   NI=0; MISSING=0
+  scoped_re='^@([^:]+)::(.*)$'
   while IFS= read -r line; do
     [[ -z "$line" || "$line" == \#* ]] && continue
     NI=$((NI + 1))
-    if ! grep -qF -- "$line" "$PROMPT"; then err "prompt is missing required rule text: $line"; MISSING=$((MISSING+1)); fi
+    target="$PROMPT"; label="prompt"; text="$line"
+    if [[ "$line" =~ $scoped_re ]]; then target="$V1/${BASH_REMATCH[1]}"; label="${BASH_REMATCH[1]}"; text="${BASH_REMATCH[2]}"; fi
+    if [[ ! -f "$target" ]]; then err "$label is named in the invariants list but does not exist"; MISSING=$((MISSING+1)); continue; fi
+    if ! grep -qF -- "$text" "$target"; then err "$label is missing required rule text: $text"; MISSING=$((MISSING+1)); fi
   done < "$INVARIANTS"
-  (( MISSING == 0 )) && ok "all $NI required rule strings are present in the prompt"
+  (( MISSING == 0 )) && ok "all $NI required rule strings are present (prompt and features)"
 fi
 
 # --- 9. Risk labels in the prompt are understood by clipcopy.sh ----------------
@@ -211,6 +215,29 @@ else
   if (( NL == 0 )); then err "found no risk labels in the prompt to check"
   elif (( SENS == 0 )); then err "no risk label in the prompt classifies as sensitive in clipcopy.sh"
   else ok "all $NL prompt risk labels are understood by clipcopy.sh ($SENS sensitive)"; fi
+fi
+
+# --- 10. Untrusted text in commands ------------------------------------------------
+# --objective and --step sit inside the shell command the operator runs. In double quotes,
+# a backtick or $(...) in them would execute, so no feature may teach that form.
+BADQ="$(grep -nE '(--objective|--step)="' "$FEAT"/*.md 2>/dev/null | head -1)"
+if [[ -n "$BADQ" ]]; then err "a feature shows --objective/--step in double quotes (untrusted text must be single-quoted): $BADQ"
+else ok "no feature shows --objective or --step in double quotes"; fi
+
+# --- 11. The label vocabulary taught to the model is understood by the script --------
+if [[ -f "$CLIP" && -f "$FEAT/clipboard.md" ]]; then
+  VOC="$(grep -m1 -E '^- `--risk=` takes the words' "$FEAT/clipboard.md" | grep -oE '`[a-z][a-z/-]*`' | tr -d '`')"
+  if [[ -z "$VOC" ]]; then err "clipboard.md no longer lists the --risk label vocabulary"
+  else
+    NV=0; BADV=0
+    for label in $VOC; do
+      NV=$((NV + 1))
+      # shellcheck source=/dev/null
+      cls="$( source "$CLIP" >/dev/null 2>&1; _sw_risk_class "$label" )"
+      if [[ "$cls" == "unrecognized" || -z "$cls" ]]; then err "clipboard.md teaches --risk label '$label' but clipcopy.sh treats it as unrecognized"; BADV=$((BADV+1)); fi
+    done
+    (( BADV == 0 )) && ok "all $NV --risk labels taught in clipboard.md are understood by clipcopy.sh"
+  fi
 fi
 
 # --- Report -------------------------------------------------------------------

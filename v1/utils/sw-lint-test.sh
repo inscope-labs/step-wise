@@ -90,6 +90,28 @@ open(p,'w').write(s.replace(old,'may have its output copied'))
 PY
 expect_fail "weakening the sensitive-output clipboard rule is rejected" "never has its output copied to the clipboard"
 
+echo; echo "== Untrusted text in commands (feature rules) =="
+fresh; python3 - <<PYEOF
+p='$TMP/v1/feature/clipboard.md'; s=open(p).read()
+assert 'Put each in **single quotes**' in s
+open(p,'w').write(s.replace('Put each in **single quotes**','Put each in quotes'))
+PYEOF
+expect_fail "clipboard feature losing the single-quote rule is rejected" "clipboard.md is missing required rule text"
+fresh; python3 - <<PYEOF
+p='$TMP/v1/feature/inspection.md'; s=open(p).read()
+assert 'no single quote, backtick' in s
+open(p,'w').write(s.replace('no single quote, backtick','no problem characters'))
+PYEOF
+expect_fail "inspection feature losing the forbidden-characters rule is rejected" "inspection.md is missing required rule text"
+fresh; sed -i "s/--step='<short step title>'/--step=\"<short step title>\"/" "$TMP/v1/feature/inspection.md"
+expect_fail "an example that double-quotes --step is rejected" "double quotes"
+fresh; sed -i "s/--objective='<short plain-words objective>'/--objective=\"<objective>\"/" "$TMP/v1/feature/clipboard.md"
+expect_fail "an example that double-quotes --objective is rejected" "double quotes"
+fresh; echo "@feature/ghost.md::anything" >> "$TMP/v1/utils/prompt-invariants.txt"
+expect_fail "an invariant naming a file that does not exist is rejected" "does not exist"
+fresh; sed -i 's/`irreversible`\. Example/`irreversible`, `brand-new-label`. Example/' "$TMP/v1/feature/clipboard.md"
+expect_fail "a --risk label taught to the model that clipcopy.sh does not know is rejected" "brand-new-label"
+
 echo; echo "== Prompt/script risk-label drift =="
 fresh; sed -i 's#^Risk: <read-only / #Risk: <read-only / brand-new-risk / #' "$TMP/v1/prompt.md"
 expect_fail "a prompt risk label clipcopy.sh does not know is rejected" "brand-new-risk"
