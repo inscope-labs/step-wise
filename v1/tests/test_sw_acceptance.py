@@ -447,7 +447,16 @@ class TestRunnerEndToEnd(unittest.TestCase):
 def copy_tree(dst):
     """A private copy of the real v1/ so tests can change files freely."""
     shutil.copytree(os.path.dirname(HERE), os.path.join(dst, "v1"), ignore=shutil.ignore_patterns("__pycache__", "results"))
-    return os.path.join(dst, "v1")
+    v1 = os.path.join(dst, "v1")
+    # Pin the copy to a pre-release Version line, whatever state the real repository is in, so that
+    # tests which bump it to 1.6.0 are meaningful both before and after a release.
+    path = os.path.join(v1, "prompt.md")
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().split("\n")
+    lines[1] = "Version: 1.6.0-dev"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    return v1
 
 
 def make_result(v1, model="model-a", **over):
@@ -493,6 +502,17 @@ class TestHashes(unittest.TestCase):
             self.edit(rel, lambda t: re.sub(r"^\| Version \|.*$", "| Version | 1.6.0 |", t, flags=re.M))
             self.edit(rel, lambda t: re.sub(r"^\| Status \|.*$", "| Status | Released. Loaded on demand. |", t, flags=re.M))
         self.assertEqual(sw.compute_hashes(self.v1), before)
+
+    def test_version_numbers_in_a_depends_on_row_do_not_change_the_hashes(self):
+        # A release rewrites "Depends on ... 1.6.0-draft" to "1.6.0", so that must not invalidate evidence.
+        before = sw.compute_hashes(self.v1)
+        self.edit("specs/clipboard/extraction.md", lambda t: re.sub(r"^(\| Depends on \|.*?)\d+\.\d+\.\d+(-[a-z]+)?", r"\g<1>9.9.9-rc", t, flags=re.M))
+        self.assertEqual(sw.compute_hashes(self.v1), before)
+
+    def test_changing_what_a_file_depends_on_does_change_the_hashes(self):
+        before = sw.compute_hashes(self.v1)
+        self.edit("specs/clipboard/extraction.md", lambda t: t.replace("`clipboard/ledger-format`", "`clipboard/something-else`", 1))
+        self.assertNotEqual(sw.compute_hashes(self.v1)["tiers_sha256"], before["tiers_sha256"])
 
     def test_a_real_content_change_changes_the_hashes(self):
         base = sw.compute_hashes(self.v1)

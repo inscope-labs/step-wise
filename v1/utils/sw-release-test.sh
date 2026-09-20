@@ -20,11 +20,34 @@ bad() { FAIL=$((FAIL + 1)); printf '  FAIL  %s\n' "$1"; [[ -n "${2:-}" ]] && pri
 section() { printf '\n== %s ==\n' "$1"; }
 
 R=""   # the current throwaway repo
+# Every test starts from a KNOWN pre-release state, whatever state the real repository is in.
+# (Copying the real tree as-is would make these tests fail the moment a release lands.)
 fresh() {
   rm -rf "$TMP/repo"; mkdir -p "$TMP/repo"
-  cp "$REAL_ROOT/README.md" "$REAL_ROOT/CHANGELOG.md" "$TMP/repo/"
+  cp "$REAL_ROOT/README.md" "$TMP/repo/"
   cp -R "$REAL_ROOT/v1" "$TMP/repo/v1"
   rm -rf "$TMP/repo/v1/tests/__pycache__" "$TMP/repo/v1/tests/results"
+  sed -i '2s/.*/Version: 1.6.0-dev/' "$TMP/repo/v1/prompt.md"
+  local f
+  for f in "$TMP/repo"/v1/feature/*.md "$TMP/repo"/v1/specs/*/*.md; do
+    sed -i -e 's/^| Framework | .* |$/| Framework | 1.6.0 (unreleased) |/' \
+           -e 's/^| Version | .* |$/| Version | 1.6.0-dev |/' \
+           -e 's/^| Status | Released\./| Status | Draft./' "$f"
+  done
+  sed -i 's/^| Depends on | `clipboard\/ledger-format` .*$/| Depends on | `clipboard\/ledger-format` 1.6.0-draft |/' "$TMP/repo/v1/specs/clipboard/extraction.md"
+  cat > "$TMP/repo/CHANGELOG.md" <<'FIXTURE'
+# Changelog
+
+## Unreleased — 1.6.0 (in progress)
+
+**Not a release.** Fixture paragraph.
+
+- Added: something.
+
+## 1.5.0
+
+- Added: an older thing.
+FIXTURE
   R="$TMP/repo"
 }
 release() { bash "$R/v1/utils/sw-release.sh" "$@" 2>&1; }
@@ -136,11 +159,12 @@ out="$(release --apply --version 1.6.0 --date 2026-09-30 --skip-suites)"; rc=$?
 grep -qE '^## 1\.6\.0 — 2026-09-30$' "$R/CHANGELOG.md" && ok "CHANGELOG heading is '## 1.6.0 — 2026-09-30'" || bad "CHANGELOG heading"
 grep -q 'Not a release' "$R/CHANGELOG.md" && bad "the 'Not a release' paragraph is gone" || ok "the 'Not a release' paragraph is gone"
 grep -q 'Released after the Phase 6' "$R/CHANGELOG.md" && ok "CHANGELOG points at the recorded results" || bad "CHANGELOG points at the recorded results"
-left="$(grep -rnE '^(Version: .*-(dev|draft)|\| (Framework|Version) \|.*(-dev|-draft|unreleased))' "$R/v1/prompt.md" "$R/v1/feature" "$R/v1/specs")"
+left="$(grep -rnE '^(Version: .*-(dev|draft)|\| (Framework|Version|Depends on) \|.*(-dev|-draft|unreleased))' "$R/v1/prompt.md" "$R/v1/feature" "$R/v1/specs")"
 [[ -z "$left" ]] && ok "no -dev, -draft or (unreleased) marker left in the prompt or tier headers" || bad "markers left" "$left"
 n="$(grep -rlE '^\| Version \| 1\.6\.0 \|$' "$R/v1/feature" "$R/v1/specs" | wc -l | tr -d ' ')"
 [[ "$n" -eq "$(ls "$R"/v1/feature/*.md "$R"/v1/specs/*/*.md | wc -l | tr -d ' ')" ]] && ok "every feature and spec header now says Version 1.6.0" || bad "every header updated" "$n updated"
 grep -rq '^| Status | Released\.' "$R/v1/feature/clipboard.md" && ok "Status rows say Released" || bad "Status rows say Released"
+grep -q '^| Depends on | `clipboard/ledger-format` 1.6.0 |$' "$R/v1/specs/clipboard/extraction.md" && ok "a version named in a Depends-on row is rewritten too" || bad "a Depends-on row naming a pre-release version is rewritten" "$(grep '^| Depends on' "$R/v1/specs/clipboard/extraction.md")"
 bash "$R/v1/utils/sw-lint.sh" >/dev/null 2>&1 && ok "the structure linter still passes" || bad "the structure linter still passes"
 python3 "$R/v1/tests/sw_acceptance.py" --verify-evidence "$R/v1/tests/results" >/dev/null 2>&1 && ok "the evidence still verifies (a version bump does not invalidate it)" || bad "the evidence still verifies"
 [[ "$(sha256sum "$R/README.md" | cut -d' ' -f1)" == "$readme_before" ]] && ok "README.md is untouched" || bad "README.md is untouched"
@@ -159,6 +183,16 @@ fresh; ev model-a; sed -i 's/^| Version | 1.6.0-dev |$/| Version | 1.6.0-dev  |/
 out="$(release --apply --version 1.6.0 --skip-suites)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"pre-release markers remain"* && "$out" == *"rolled back"* ]] && ok "a header the script cannot rewrite is detected and rolled back" || bad "unrewritable header is detected" "rc=$rc; $(printf '%s' "$out" | tail -3 | tr '\n' '|')"
 [[ "$(tree_sum)" == "$before" ]] && ok "that rollback is also byte-for-byte" || bad "that rollback is also byte-for-byte"
+
+fresh; sed -i '/^| Depends on |/s/ |$/ (unreleased) |/' "$R/v1/specs/clipboard/extraction.md"; ev model-a; before="$(tree_sum)"   # evidence AFTER the edit, or it is (correctly) stale
+out="$(release --apply --version 1.6.0 --skip-suites)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"pre-release markers remain"* && "$out" == *"rolled back"* ]] && ok "a marker the script cannot rewrite in a Depends-on row is detected and rolled back" || bad "unrewritable Depends-on marker detected" "rc=$rc"
+[[ "$(tree_sum)" == "$before" ]] && ok "that rollback is byte-for-byte too" || bad "Depends-on rollback is byte-for-byte"
+
+# Narrowness: only the rows a release is meant to change are rewritten. A row that merely MENTIONS the version stays.
+fresh; ev model-a; printf '| Note | The 1.6.0-dev suffix is explained here |\n' >> "$R/v1/feature/logging.md"
+release --apply --version 1.6.0 --skip-suites >/dev/null
+grep -qF '| Note | The 1.6.0-dev suffix is explained here |' "$R/v1/feature/logging.md" && ok "an unrelated table row that mentions the version is left alone" || bad "an unrelated table row is left alone"
 
 # The post-apply evidence check is a safety net: a version bump never changes hashed text, so it cannot
 # fire in normal use. Simulate a future bug in apply_edits that touches hashed text, and confirm the net holds.

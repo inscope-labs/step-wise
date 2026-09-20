@@ -191,7 +191,8 @@ apply_edits() {
     sed -E -i.bak \
       -e "s/^\\| Framework \\| ${t} \\(unreleased\\) \\|\$/| Framework | ${TARGET} |/" \
       -e "s/^\\| Version \\| ${t}-(dev|draft) \\|\$/| Version | ${TARGET} |/" \
-      -e "s/^\\| Status \\| Draft\\./| Status | Released./" "$f"
+      -e "s/^\\| Status \\| Draft\\./| Status | Released./" \
+      -e "/^\\| Depends on \\|/s/${t}-(dev|draft)/${TARGET}/g" "$f"
   done
   sed -E -i.bak "s/^## Unreleased [^0-9]*${t} \\(in progress\\)\$/## ${TARGET} — ${DATE}/" "$CHANGELOG"
   local msg
@@ -232,7 +233,7 @@ fail_and_restore() {
 
 apply_edits
 
-leftover="$(grep -nE '^(Version: .*-(dev|draft)|\| (Framework|Version) \|.*(-dev|-draft|unreleased))' "$PROMPT" "$V1"/feature/*.md "$V1"/specs/*/*.md 2>/dev/null)"
+leftover="$(grep -nE '^(Version: .*-(dev|draft)|\| (Framework|Version|Depends on) \|.*(-dev|-draft|unreleased))' "$PROMPT" "$V1"/feature/*.md "$V1"/specs/*/*.md 2>/dev/null)"
 [[ -n "$leftover" ]] && fail_and_restore "pre-release markers remain: $(printf '%s' "$leftover" | head -3 | tr '\n' ' ')"
 grep -qE "^## ${TARGET//./\\.} — ${DATE}\$" "$CHANGELOG" || fail_and_restore "the CHANGELOG heading '## Unreleased … ${TARGET} (in progress)' was not in the expected form; edit it by hand"
 [[ "$(sed -n '2p' "$PROMPT")" == "Version: $TARGET" ]] || fail_and_restore "the prompt's Version line was not updated"
@@ -253,8 +254,8 @@ fi
 cat <<EOF
 
 Not done by this script. These need a person:
-  1. README.md: update the Status line and the "In progress" paragraph, and rename the
-     "(1.6.0-dev)" and "(1.6.0 preview)" headings (and the anchors that link to them).
+  1. README.md: update the Status line and any pre-release wording or headings (and the
+     anchors that link to them).
   2. Review the diff (git diff), then commit.
   3. Tag it (git tag v$TARGET) and push. This script never commits, tags, or pushes.
 EOF

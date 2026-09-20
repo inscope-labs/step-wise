@@ -259,8 +259,20 @@ def eval_check(chk, text, fetched):
 _RELEASE_LINES = re.compile(r"^(Version: |\| (Framework|Version|Status) \|)")
 
 
+_VERSION_TOKEN = re.compile(r"\b\d+\.\d+\.\d+(-[A-Za-z0-9.]+)?")
+
+
 def _normalized(text):
-    return "\n".join(l for l in text.split("\n") if not _RELEASE_LINES.match(l))
+    """Drops release-only lines, and blanks the version numbers (not the names) inside Depends-on
+    rows, which a release rewrites. Changing WHAT a file depends on still changes the hash."""
+    out = []
+    for l in text.split("\n"):
+        if _RELEASE_LINES.match(l):
+            continue
+        if l.startswith("| Depends on |"):
+            l = _VERSION_TOKEN.sub("X.Y.Z", l)
+        out.append(l)
+    return "\n".join(out)
 
 
 def compute_hashes(v1=V1):
