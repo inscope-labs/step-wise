@@ -9,7 +9,7 @@ The AI proposes. The human executes.
 
 **Status:** `1.6.0` — internal pre-release. All `1.x` releases are minor/patch revisions of the same generation; the framework moves to `2.0.0` only once it has been fully tested end-to-end. See [`CHANGELOG.md`](CHANGELOG.md) for version history.
 
-**Released:** `1.6.0` (2026-09-20). `v1/prompt.md` is the mandatory prompt plus on-demand features and specs, described under [Context Tiers](#context-tiers). **1.6.0 was released without recorded acceptance results.** The maintainer reports manual testing against Gemini, but no transcripts or results are recorded in this repository and no run of the acceptance runner is on file. The release gate's evidence condition was waived for this release (the CHANGELOG states this and the reason); the gate itself stays in place. What changed, and how to pin `1.5.0`: [`docs/1.6.0-plan/compatibility.md`](docs/1.6.0-plan/compatibility.md).
+**In development:** `1.6.1-dev` adds opt-in [Contextual Memory Sync](#contextual-memory-sync-161-dev). **Released:** `1.6.0` (2026-09-20). `v1/prompt.md` is the mandatory prompt plus on-demand features and specs, described under [Context Tiers](#context-tiers). **1.6.0 was released without recorded acceptance results.** The maintainer reports manual testing against Gemini, but no transcripts or results are recorded in this repository and no run of the acceptance runner is on file. The release gate's evidence condition was waived for this release (the CHANGELOG states this and the reason); the gate itself stays in place. What changed, and how to pin `1.5.0`: [`docs/1.6.0-plan/compatibility.md`](docs/1.6.0-plan/compatibility.md).
 
 ---
 
@@ -137,6 +137,27 @@ Properties worth knowing:
 - A ledger failure never blocks the command, and never changes what you see or its exit status.
 - Limits: output is captured as combined stdout and stderr through a pipe, like `runcopy`, so interactive programs, pagers, and terminal colors are not supported. A label describes the *command*, so it cannot tell you a non-sensitive command printed something sensitive — inspect an entry before extracting it.
 
+## Contextual Memory Sync (1.6.1-dev)
+
+> **In development, opt-in, off by default.** Adds an optional persistent memory: constraints, affected paths, verified facts, past failures and corrections that survive sessions and synchronize between machines by copying files, so a later session avoids repeating discovery. Nothing changes if you never turn it on. Design and threat model: [`docs/memory-sync/design.md`](docs/memory-sync/design.md); every file it touches: [`docs/memory-sync/repository-survey.md`](docs/memory-sync/repository-survey.md).
+
+The assistant never reads or writes the store. **You** run `swmem` (Python 3, standard library only) and paste the output, so you see exactly what is saved before it is.
+
+```bash
+swmem() { python3 /path/to/v1/utils/swmem.py "$@"; }
+swmem init
+swmem add fact --trust observed --risk read-only --subject 'service:nginx' --text 'nginx 1.24 installed via apt' --fp 'path-hash:/etc/nginx/nginx.conf'
+swmem recall --context 'nginx config' --verify          # at the start of a task
+swmem status                                           # integrity, after any sync
+```
+
+Turn it on for a session with `sw:memory/on`. The design in one paragraph:
+
+- **Recalled memory is a hypothesis, never evidence.** Only a record whose fingerprint matched *just now* may replace a discovery step, and nothing recalled can satisfy a criterion or authorize an action. Text inside a record is data, not instructions.
+- **Sync is copying files.** Each machine appends only to its own file, so git, rsync, Syncthing or a cloud folder never produce a merge conflict. Records are immutable and hash-chained. Concurrent edits are kept and flagged `disputed`, and torn writes, corruption, rollback and replica-id reuse are detected.
+- **Never stored:** credentials, output of credential/privileged-data steps, destructive or privileged confirmations, raw output, commands, or the assistant's own guesses. A fail-closed risk gate, a secret scanner and a credential-path denylist enforce the first three.
+- **Limits:** the store is not encrypted, has no authentication (whoever can write files into it can add records), and the secret scanner is heuristic. Cost grows linearly: about 0.5 s to recall from 10,000 records. Tested on Python 3.12 on Linux only.
+
 ## Context Tiers
 
 The mandatory prompt stays bounded, and capability detail loads only when a task needs it.
@@ -160,7 +181,7 @@ The linter checks structure, not model behavior. Behavior is covered by the acce
 
 ## Behavioral acceptance tests
 
-The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 16 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, and `Blocked` on a missing reference, plus the quoting of ledger metadata) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves features and specs from this repository, so it also records what the model chose to load.
+The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 20 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, and `Blocked` on a missing reference, plus the quoting of ledger metadata) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves features and specs from this repository, so it also records what the model chose to load.
 
 ```bash
 python3 v1/tests/sw_acceptance.py --dry-run          # validate the scenarios; no key, no network
