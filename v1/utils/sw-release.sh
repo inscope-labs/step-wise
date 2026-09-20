@@ -9,6 +9,12 @@
 #   --min-models N      models that must have passing acceptance evidence (default 1)
 #   --min-samples N     samples per scenario each evidence file must have used (default 3)
 #   --evidence DIR      where results files live (default v1/tests/results)
+#   --waive-evidence "REASON"
+#                       release without recorded acceptance results. Waives ONLY the absence
+#                       of results; every other condition still applies, and it cannot hide a
+#                       recorded result that fails or is unusable (re-run or remove those).
+#                       REASON is required, is printed, and is written into the CHANGELOG, so
+#                       the release says plainly that it went out without recorded evidence.
 #
 # --check reports every unmet condition and exits 1 if any. It changes nothing.
 #
@@ -30,23 +36,40 @@ PROMPT="$V1/prompt.md"
 CHANGELOG="$ROOT/CHANGELOG.md"
 RUNNER="$V1/tests/sw_acceptance.py"
 
-MODE=""; VERSION=""; DATE=""; SKIP=0; MIN_MODELS=1; MIN_SAMPLES=3; EVID="$V1/tests/results"
+MODE=""; VERSION=""; DATE=""; SKIP=0; MIN_MODELS=1; MIN_SAMPLES=3; EVID="$V1/tests/results"; WAIVER=""; WAIVER_SET=0; WAIVED=0
+usage_err() { echo "sw-release: $*" >&2; exit 2; }
+# A value-taking option with no value must be an error. (A bare 'shift 2' fails when only one
+# argument is left, which would leave the loop spinning forever.)
 while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --version|--date|--min-models|--min-samples|--evidence|--waive-evidence)
+      [[ $# -ge 2 ]] || usage_err "$1 needs a value" ;;
+  esac
   case "$1" in
     --check) MODE=check; shift ;;
     --apply) MODE=apply; shift ;;
-    --version) VERSION="${2:-}"; shift 2 ;;
-    --date) DATE="${2:-}"; shift 2 ;;
+    --version) VERSION="$2"; shift 2 ;;
+    --date) DATE="$2"; shift 2 ;;
     --skip-suites) SKIP=1; shift ;;
-    --min-models) MIN_MODELS="${2:-}"; shift 2 ;;
-    --min-samples) MIN_SAMPLES="${2:-}"; shift 2 ;;
-    --evidence) EVID="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,26p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    --min-models) MIN_MODELS="$2"; shift 2 ;;
+    --min-samples) MIN_SAMPLES="$2"; shift 2 ;;
+    --evidence) EVID="$2"; shift 2 ;;
+    --waive-evidence) WAIVER="$2"; WAIVER_SET=1; shift 2 ;;
+    -h|--help) sed -n '2,32p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "sw-release: unknown argument '$1'" >&2; exit 2 ;;
   esac
 done
 [[ -z "$MODE" ]] && { echo "sw-release: choose --check or --apply (see --help)" >&2; exit 2; }
 [[ "$MIN_MODELS" =~ ^[0-9]+$ && "$MIN_SAMPLES" =~ ^[0-9]+$ ]] || { echo "sw-release: --min-models and --min-samples must be integers" >&2; exit 2; }
+if (( WAIVER_SET == 1 )); then
+  trimmed="${WAIVER#"${WAIVER%%[![:space:]]*}"}"
+  if (( ${#trimmed} < 15 )); then
+    echo "sw-release: --waive-evidence needs a reason of at least 15 characters saying why the release goes out without recorded results" >&2; exit 2
+  fi
+  if [[ "$WAIVER" == *\\* || "$WAIVER" == *$'\n'* || "$WAIVER" == *$'\r'* ]]; then
+    echo "sw-release: the waiver reason must be one line with no backslash" >&2; exit 2
+  fi
+fi
 if [[ "$MODE" == apply ]]; then
   [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "sw-release: --apply needs --version X.Y.Z" >&2; exit 2; }
   DATE="${DATE:-$(date -u +%Y-%m-%d)}"
@@ -118,16 +141,28 @@ run_gate() {
   if ! command -v python3 >/dev/null 2>&1; then
     blocked "python3 not found; it is needed to verify acceptance evidence"
   else
-    local out rc
+    local out rc unwaivable
     out="$(python3 "$RUNNER" --verify-evidence "$EVID" --min-models "$MIN_MODELS" --min-samples "$MIN_SAMPLES" 2>&1)"; rc=$?
     if (( rc == 0 )); then
       ok "$(printf '%s' "$out" | grep -E '^Evidence OK')"
       printf '%s\n' "$out" | grep -E '^note:' | sed 's/^/         /'
+      (( WAIVER_SET == 1 )) && note "--waive-evidence was given but is not needed: valid evidence exists, so no waiver is recorded"
     else
-      printf '%s\n' "$out" | sed -n 's/^BLOCKED: //p' | while IFS= read -r line; do printf 'BLOCKED  evidence: %s\n' "$line"; done
-      printf '%s\n' "$out" | grep -E '^note:' | sed 's/^/         /'
-      # The while loop above ran in a subshell, so count blockers here.
-      BLOCKERS=$((BLOCKERS + $(printf '%s\n' "$out" | grep -c '^BLOCKED: ')))
+      # Only "nothing recorded yet" can be waived. A recorded result that fails, is partial, or is
+      # unreadable must be re-run or removed. A waiver must never hide it.
+      unwaivable="$(printf '%s\n' "$out" | sed -n 's/^BLOCKED: //p' | grep -vE '^no acceptance evidence in |^[0-9]+ model\(s\) have passing evidence, need at least ' || true)"
+      if (( WAIVER_SET == 1 )) && [[ -z "$unwaivable" ]]; then
+        WAIVED=1
+        printf 'WAIVED   evidence: %s\n' "$WAIVER"
+        printf '%s\n' "$out" | grep -E '^note:' | sed 's/^/         /'
+        note "the waiver covers only the absence of recorded results; every other condition still applies"
+      else
+        printf '%s\n' "$out" | sed -n 's/^BLOCKED: //p' | while IFS= read -r line; do printf 'BLOCKED  evidence: %s\n' "$line"; done
+        printf '%s\n' "$out" | grep -E '^note:' | sed 's/^/         /'
+        # The while loop above ran in a subshell, so count blockers here.
+        BLOCKERS=$((BLOCKERS + $(printf '%s\n' "$out" | grep -c '^BLOCKED: ')))
+        (( WAIVER_SET == 1 )) && blocked "--waive-evidence cannot be used: recorded results exist that fail or are unusable. Re-run them or remove them"
+      fi
     fi
   fi
 }
@@ -159,8 +194,13 @@ apply_edits() {
       -e "s/^\\| Status \\| Draft\\./| Status | Released./" "$f"
   done
   sed -E -i.bak "s/^## Unreleased [^0-9]*${t} \\(in progress\\)\$/## ${TARGET} — ${DATE}/" "$CHANGELOG"
-  awk -v msg="Released after the Phase 6 acceptance scenarios passed. The recorded results are in \`v1/tests/results/\`." \
-      '/^\*\*Not a release\.\*\*/ { print msg; next } { print }' "$CHANGELOG" > "$CHANGELOG.new" && mv "$CHANGELOG.new" "$CHANGELOG"
+  local msg
+  if (( WAIVED == 1 )); then
+    msg="Released with the acceptance-evidence condition of the release gate waived by the maintainer. Stated basis: ${WAIVER}. No recorded acceptance results match this release; that is a known gap, not a passing result."
+  else
+    msg="Released after the Phase 6 acceptance scenarios passed. The recorded results are in \`v1/tests/results/\`."
+  fi
+  awk -v msg="$msg" '/^\*\*Not a release\.\*\*/ { print msg; next } { print }' "$CHANGELOG" > "$CHANGELOG.new" && mv "$CHANGELOG.new" "$CHANGELOG"
   find "$V1" "$ROOT" -maxdepth 3 -name '*.bak' -delete 2>/dev/null
 }
 
@@ -197,12 +237,19 @@ leftover="$(grep -nE '^(Version: .*-(dev|draft)|\| (Framework|Version) \|.*(-dev
 grep -qE "^## ${TARGET//./\\.} — ${DATE}\$" "$CHANGELOG" || fail_and_restore "the CHANGELOG heading '## Unreleased … ${TARGET} (in progress)' was not in the expected form; edit it by hand"
 [[ "$(sed -n '2p' "$PROMPT")" == "Version: $TARGET" ]] || fail_and_restore "the prompt's Version line was not updated"
 bash "$V1/utils/sw-lint.sh" >/dev/null 2>&1 || fail_and_restore "the structure linter fails after the edit"
-python3 "$RUNNER" --verify-evidence "$EVID" --min-models "$MIN_MODELS" --min-samples "$MIN_SAMPLES" >/dev/null 2>&1 \
-  || fail_and_restore "acceptance evidence no longer verifies after the edit"
+if (( WAIVED == 0 )); then
+  python3 "$RUNNER" --verify-evidence "$EVID" --min-models "$MIN_MODELS" --min-samples "$MIN_SAMPLES" >/dev/null 2>&1 \
+    || fail_and_restore "acceptance evidence no longer verifies after the edit"
+fi
 rm -rf "$BK"
 
 ok "prompt is now 'Version: $TARGET'; feature and spec headers updated; CHANGELOG heading is '## $TARGET — $DATE'"
-ok "structure linter passes and the acceptance evidence still verifies"
+if (( WAIVED == 1 )); then
+  printf 'WAIVED   released without recorded acceptance results. The CHANGELOG states this and the reason.\n'
+  ok "structure linter passes"
+else
+  ok "structure linter passes and the acceptance evidence still verifies"
+fi
 cat <<EOF
 
 Not done by this script. These need a person:

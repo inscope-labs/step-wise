@@ -58,6 +58,10 @@ The release stays in the 1.x series. Do not create `stepwise-v2-prompt.md` or a 
 
 Editing the prompt, a feature, a spec or a scenario after recording evidence makes that evidence stale. Re-run before releasing.
 
+**Releasing without recorded evidence.** If a maintainer decides to release before results are recorded, `--check` and `--apply` accept `--waive-evidence "REASON"`. It waives only the *absence* of recorded results. Every other condition still applies, and it cannot hide a recorded result that fails, is partial, or is unreadable (re-run or remove those). The reason is required, is printed, and is written into the CHANGELOG together with the statement that no recorded results match the release, "a known gap, not a passing result". It never creates an evidence file. If valid evidence exists the waiver is ignored and nothing is recorded. Use of the waiver is the maintainer's decision and is visible in the release notes; the gate itself stays in place for the next release.
+
+**After a release.** Start the next cycle by setting the prompt's Version line to the next `X.Y.Z-dev` and adding an Unreleased section to the CHANGELOG; the gate expects both.
+
 ## 7. Known limitations
 
 - Nothing here has been run against a real model. Every behavioral claim is unmeasured until step 1 above happens.
