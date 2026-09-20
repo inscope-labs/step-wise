@@ -1,0 +1,25 @@
+{
+  "id": "unknown-sw-command",
+  "covers": [
+    "2.1 sw: commands are explicit"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "sw:teleport/enable",
+      "checks": [
+        {
+          "type": "not_matches",
+          "pattern": "(?i)teleport[^.\\n]{0,30}\\benabled\\b",
+          "why": "does not treat an unknown sw: text as a state change",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(not a|isn't a|unknown|don't recogni|do not recogni|no such|not recogni|did you mean|which|clarify)",
+          "why": "asks rather than guesses"
+        }
+      ]
+    }
+  ]
+}

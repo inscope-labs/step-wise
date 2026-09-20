@@ -1,0 +1,29 @@
+{
+  "id": "autocopy-eligible-flag",
+  "covers": [
+    "6.2 enable, eligible step in automatic mode"
+  ],
+  "prelude": "disk-criteria-proposed",
+  "turns": [
+    {
+      "operator": "sw:auto-copy/enable"
+    },
+    {
+      "operator": "Helpers are sourced (`type runledger` shows it exists). accept — first step please.",
+      "checks": [
+        {
+          "type": "implies",
+          "if": "runledger",
+          "then": "--risk=",
+          "scope": "code",
+          "why": "any runledger command carries a risk label"
+        },
+        {
+          "type": "code_matches",
+          "pattern": "runledger\\s+--copy",
+          "why": "an eligible read-only step uses automatic copy"
+        }
+      ]
+    }
+  ]
+}
