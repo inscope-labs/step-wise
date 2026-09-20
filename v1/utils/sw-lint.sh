@@ -10,7 +10,8 @@
 # headers and Framework compatibility, that the prompt's feature index and each
 # feature's spec references resolve both ways, the one-way hierarchy
 # (Prompt -> Feature -> Spec), that a curated list of 1.5.0 rules is still in the
-# prompt, and that every risk label in the prompt is understood by clipcopy.sh.
+# prompt, that every risk label in the prompt is understood by clipcopy.sh, and that the memory
+# tool's risk classifier agrees with the shell's.
 # What it cannot check: how a model behaves. Behavioral acceptance tests
 # (plan Phase 6) are separate.
 
@@ -218,11 +219,13 @@ else
 fi
 
 # --- 10. Untrusted text in commands ------------------------------------------------
-# --objective and --step sit inside the shell command the operator runs. In double quotes,
-# a backtick or $(...) in them would execute, so no feature may teach that form.
-BADQ="$(grep -nE '(--objective|--step)="' "$FEAT"/*.md 2>/dev/null | head -1)"
-if [[ -n "$BADQ" ]]; then err "a feature shows --objective/--step in double quotes (untrusted text must be single-quoted): $BADQ"
-else ok "no feature shows --objective or --step in double quotes"; fi
+# Free text sits inside the shell command the operator runs (--objective and --step for the ledger,
+# --text, --subject, --reason and --set values for the memory tool). In double quotes, a backtick or
+# $(...) in it would execute, so no feature may teach that form. The ledger takes --opt=value and the
+# memory tool takes --opt value, so both spellings are checked.
+BADQ="$(grep -nE '(--(objective|step|text|subject|reason)[= ]"|--set [A-Za-z_]+="|--(tag|fp|ttl|risk)[= ]")' "$FEAT"/*.md 2>/dev/null | head -1)"
+if [[ -n "$BADQ" ]]; then err "a feature shows a free-text option in double quotes (untrusted text must be single-quoted): $BADQ"
+else ok "no feature shows a free-text command option in double quotes"; fi
 
 # --- 11. The label vocabulary taught to the model is understood by the script --------
 if [[ -f "$CLIP" && -f "$FEAT/clipboard.md" ]]; then
@@ -237,6 +240,34 @@ if [[ -f "$CLIP" && -f "$FEAT/clipboard.md" ]]; then
       if [[ "$cls" == "unrecognized" || -z "$cls" ]]; then err "clipboard.md teaches --risk label '$label' but clipcopy.sh treats it as unrecognized"; BADV=$((BADV+1)); fi
     done
     (( BADV == 0 )) && ok "all $NV --risk labels taught in clipboard.md are understood by clipcopy.sh"
+  fi
+fi
+
+# --- 12. The memory tool's risk classifier agrees with the shell's ----------------------
+# Two implementations of one safety gate drift. Compare them in both directions: every label either
+# side accepts, plus edge cases, must get the same class from both. One process each, so it stays fast.
+SWMEM="$V1/utils/swmem.py"
+if [[ -f "$SWMEM" && -f "$CLIP" ]]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    ok "python3 not found; skipped the memory tool's risk classifier parity check"
+  else
+    SHELL_ELIG="$(grep -oE '^[[:space:]]*read-only\|[a-z|-]+' "$CLIP" | head -1 | tr -d ' ' | tr '|' '\n')"
+    SHELL_SENS="$(grep -oE '\*credential\*\|[^)]+' "$CLIP" | head -1 | tr '|' '\n' | tr -d '*')"
+    PYLIST="$(python3 "$SWMEM" risk-labels 2>/dev/null | sed 's/^[a-z]* //')"
+    if [[ -z "$SHELL_ELIG" || -z "$SHELL_SENS" || -z "$PYLIST" ]]; then err "could not read the risk label lists from clipcopy.sh and swmem.py"
+    else
+      # The empty label is deliberately NOT last: command substitution strips trailing newlines and would drop it.
+      PROBES="$(printf '%s\n' "$SHELL_ELIG" "$SHELL_SENS" "$PYLIST" bogus '' 'Credential' 'Difficult to reverse' 'read_only' 'read-only,' ',' 'read-only,,network' 'network')"
+      PYC="$(printf '%s\n' "$PROBES" | python3 "$SWMEM" risk-class - 2>&1)"
+      # shellcheck source=/dev/null
+      SHC="$(printf '%s\n' "$PROBES" | bash -c 'source "$1" >/dev/null 2>&1; while IFS= read -r l; do _sw_risk_class "$l"; done' _ "$CLIP" 2>&1)"
+      if [[ "$PYC" == "$SHC" ]]; then
+        ok "swmem.py and clipcopy.sh classify all $(printf '%s\n' "$PROBES" | wc -l | tr -d ' ') probe risk labels identically"
+      else
+        MISMATCH="$(paste -d'|' <(printf '%s\n' "$PROBES") <(printf '%s\n' "$PYC") <(printf '%s\n' "$SHC") | awk -F'|' '$2 != $3 {print "label [" $1 "]: swmem=" $2 " shell=" $3; exit}')"
+        err "the memory tool's risk classifier and clipcopy.sh disagree (the two have drifted): ${MISMATCH:-unknown}"
+      fi
+    fi
   fi
 fi
 

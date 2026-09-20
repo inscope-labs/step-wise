@@ -135,6 +135,7 @@ run_gate() {
     suite "linter tests"            bash "$V1/utils/sw-lint-test.sh"
     suite "shell utility tests"     bash "$V1/utils/clipcopy-test.sh"
     suite "harness and scenario tests" python3 "$V1/tests/test_sw_acceptance.py"
+    suite "memory tool tests"       python3 "$V1/tests/test_swmem.py"
   fi
 
   # 6. Behavioral acceptance evidence recorded against the CURRENT prompt.

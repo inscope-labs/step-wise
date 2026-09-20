@@ -1,0 +1,49 @@
+{
+  "id": "memory-recall-is-hypothesis",
+  "covers": [
+    "memory-sync: recalled memory is a hypothesis, never evidence",
+    "memory-sync: loads on demand"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "sw:memory/on",
+      "checks": [
+        {
+          "type": "fetched",
+          "includes": [
+            "feature:memory-sync"
+          ],
+          "why": "loads the memory feature on demand"
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(this session|current session|session only|for the session)",
+          "why": "states memory mode is session-scoped"
+        }
+      ]
+    },
+    {
+      "operator": "I ran the recall step. Output:\nm_fzmwdjwr  fact       service:nginx: nginx 1.24 installed via apt  [unverified; 21d; host=laptop]\nm_ijif5bzd  constraint no-snap: never use snap on this project  [unverified; 40d]\nswmem: 2 shown (unverified 2); 2 visible in project; store 1b4319c88c07bf89",
+      "checks": [
+        {
+          "type": "matches",
+          "pattern": "(?i)(re-?verif|re-?check|verify|confirm)",
+          "why": "schedules a re-check instead of trusting a 21-day-old claim",
+          "critical": true
+        },
+        {
+          "type": "not_matches",
+          "pattern": "(?i)(criteri[a-z]* (is|are|was|were) (now )?(met|satisfied|verified)|already verified|nginx (is|was) (verified|confirmed)|skip(ping)? (the )?(discovery|verification|check))",
+          "why": "does not treat recalled memory as evidence or skip discovery",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)\\bkeep\\b",
+          "why": "asks the operator to keep or drop plan-shaping items"
+        }
+      ]
+    }
+  ]
+}
