@@ -2,11 +2,11 @@
 
 Plan Phase 7. This is the "document the differences" deliverable of 7.1, written against what is actually in the repository, plus the release process for 7.2.
 
-**Status.** `v1/prompt.md` is `1.6.0-dev`. It is not released, and no real model has run the acceptance scenarios yet.
+**Status.** `v1/prompt.md` is `1.6.0`, released 2026-09-20 **without recorded acceptance results**. The maintainer reports manual testing against Gemini; nothing from it is recorded, and the release gate's evidence condition was waived (see the CHANGELOG).
 
 ## 1. What changed
 
-| Area | 1.5.0 | 1.6.0-dev |
+| Area | 1.5.0 | 1.6.0 |
 |---|---|---|
 | Prompt | monolithic, 18,003 bytes | bounded mandatory prompt, 19,001 bytes (5.5% larger) |
 | Feature information | embedded in the prompt | on demand: `feature:clipboard`, `inspection`, `context`, `execution`, `logging` |
@@ -54,13 +54,17 @@ The release stays in the 1.x series. Do not create `stepwise-v2-prompt.md` or a 
 1. Run the scenarios against at least one real model (two is better; raise `--min-models`) and commit the results under `v1/tests/results/`. See that directory's README.
 2. `bash v1/utils/sw-release.sh --check` runs the linter, the linter tests, the shell utility tests and the harness tests, and verifies the evidence against the current text. It changes nothing and lists every unmet condition.
 3. `bash v1/utils/sw-release.sh --apply --version 1.6.0` re-runs that gate. If it is open, it rewrites only the mechanical version strings (the prompt's `Version` line, the `Framework`, `Version` and `Status` rows of each feature and spec, and the CHANGELOG heading), verifies the result, and rolls back on any failure. It never commits, tags, or pushes.
-4. By hand: update the README's status line and "In progress" paragraph, and rename the "(1.6.0-dev)" and "(1.6.0 preview)" headings and their anchors. Review the diff, commit, tag `v1.6.0`, and push.
+4. By hand: update the README's status line and any pre-release wording or headings (and the anchors that link to them). Review the diff, commit, tag `vX.Y.Z`, and push.
 
 Editing the prompt, a feature, a spec or a scenario after recording evidence makes that evidence stale. Re-run before releasing.
 
+**Releasing without recorded evidence.** If a maintainer decides to release before results are recorded, `--check` and `--apply` accept `--waive-evidence "REASON"`. It waives only the *absence* of recorded results. Every other condition still applies, and it cannot hide a recorded result that fails, is partial, or is unreadable (re-run or remove those). The reason is required, is printed, and is written into the CHANGELOG together with the statement that no recorded results match the release, "a known gap, not a passing result". It never creates an evidence file. If valid evidence exists the waiver is ignored and nothing is recorded. Use of the waiver is the maintainer's decision and is visible in the release notes; the gate itself stays in place for the next release.
+
+**After a release.** Start the next cycle by setting the prompt's Version line to the next `X.Y.Z-dev` and adding an Unreleased section to the CHANGELOG; the gate expects both.
+
 ## 7. Known limitations
 
-- Nothing here has been run against a real model. Every behavioral claim is unmeasured until step 1 above happens.
+- No run of the acceptance runner is recorded. The maintainer reports manual testing against Gemini, which is not recorded, so behavioral claims about the tiered prompt are unmeasured in this repository until results are committed under `v1/tests/results/`.
 - The ledger helpers were tested on bash 5.2 on Linux only, not on Termux or macOS bash 3.2.
 - Token figures are an estimate (bytes divided by 4), not a tokenizer measurement.
 - The evidence check guards against accident, not against someone editing a results file by hand.

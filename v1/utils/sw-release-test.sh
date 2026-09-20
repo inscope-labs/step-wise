@@ -20,11 +20,34 @@ bad() { FAIL=$((FAIL + 1)); printf '  FAIL  %s\n' "$1"; [[ -n "${2:-}" ]] && pri
 section() { printf '\n== %s ==\n' "$1"; }
 
 R=""   # the current throwaway repo
+# Every test starts from a KNOWN pre-release state, whatever state the real repository is in.
+# (Copying the real tree as-is would make these tests fail the moment a release lands.)
 fresh() {
   rm -rf "$TMP/repo"; mkdir -p "$TMP/repo"
-  cp "$REAL_ROOT/README.md" "$REAL_ROOT/CHANGELOG.md" "$TMP/repo/"
+  cp "$REAL_ROOT/README.md" "$TMP/repo/"
   cp -R "$REAL_ROOT/v1" "$TMP/repo/v1"
   rm -rf "$TMP/repo/v1/tests/__pycache__" "$TMP/repo/v1/tests/results"
+  sed -i '2s/.*/Version: 1.6.0-dev/' "$TMP/repo/v1/prompt.md"
+  local f
+  for f in "$TMP/repo"/v1/feature/*.md "$TMP/repo"/v1/specs/*/*.md; do
+    sed -i -e 's/^| Framework | .* |$/| Framework | 1.6.0 (unreleased) |/' \
+           -e 's/^| Version | .* |$/| Version | 1.6.0-dev |/' \
+           -e 's/^| Status | Released\./| Status | Draft./' "$f"
+  done
+  sed -i 's/^| Depends on | `clipboard\/ledger-format` .*$/| Depends on | `clipboard\/ledger-format` 1.6.0-draft |/' "$TMP/repo/v1/specs/clipboard/extraction.md"
+  cat > "$TMP/repo/CHANGELOG.md" <<'FIXTURE'
+# Changelog
+
+## Unreleased — 1.6.0 (in progress)
+
+**Not a release.** Fixture paragraph.
+
+- Added: something.
+
+## 1.5.0
+
+- Added: an older thing.
+FIXTURE
   R="$TMP/repo"
 }
 release() { bash "$R/v1/utils/sw-release.sh" "$@" 2>&1; }
@@ -136,11 +159,12 @@ out="$(release --apply --version 1.6.0 --date 2026-09-30 --skip-suites)"; rc=$?
 grep -qE '^## 1\.6\.0 — 2026-09-30$' "$R/CHANGELOG.md" && ok "CHANGELOG heading is '## 1.6.0 — 2026-09-30'" || bad "CHANGELOG heading"
 grep -q 'Not a release' "$R/CHANGELOG.md" && bad "the 'Not a release' paragraph is gone" || ok "the 'Not a release' paragraph is gone"
 grep -q 'Released after the Phase 6' "$R/CHANGELOG.md" && ok "CHANGELOG points at the recorded results" || bad "CHANGELOG points at the recorded results"
-left="$(grep -rnE '^(Version: .*-(dev|draft)|\| (Framework|Version) \|.*(-dev|-draft|unreleased))' "$R/v1/prompt.md" "$R/v1/feature" "$R/v1/specs")"
+left="$(grep -rnE '^(Version: .*-(dev|draft)|\| (Framework|Version|Depends on) \|.*(-dev|-draft|unreleased))' "$R/v1/prompt.md" "$R/v1/feature" "$R/v1/specs")"
 [[ -z "$left" ]] && ok "no -dev, -draft or (unreleased) marker left in the prompt or tier headers" || bad "markers left" "$left"
 n="$(grep -rlE '^\| Version \| 1\.6\.0 \|$' "$R/v1/feature" "$R/v1/specs" | wc -l | tr -d ' ')"
 [[ "$n" -eq "$(ls "$R"/v1/feature/*.md "$R"/v1/specs/*/*.md | wc -l | tr -d ' ')" ]] && ok "every feature and spec header now says Version 1.6.0" || bad "every header updated" "$n updated"
 grep -rq '^| Status | Released\.' "$R/v1/feature/clipboard.md" && ok "Status rows say Released" || bad "Status rows say Released"
+grep -q '^| Depends on | `clipboard/ledger-format` 1.6.0 |$' "$R/v1/specs/clipboard/extraction.md" && ok "a version named in a Depends-on row is rewritten too" || bad "a Depends-on row naming a pre-release version is rewritten" "$(grep '^| Depends on' "$R/v1/specs/clipboard/extraction.md")"
 bash "$R/v1/utils/sw-lint.sh" >/dev/null 2>&1 && ok "the structure linter still passes" || bad "the structure linter still passes"
 python3 "$R/v1/tests/sw_acceptance.py" --verify-evidence "$R/v1/tests/results" >/dev/null 2>&1 && ok "the evidence still verifies (a version bump does not invalidate it)" || bad "the evidence still verifies"
 [[ "$(sha256sum "$R/README.md" | cut -d' ' -f1)" == "$readme_before" ]] && ok "README.md is untouched" || bad "README.md is untouched"
@@ -160,6 +184,16 @@ out="$(release --apply --version 1.6.0 --skip-suites)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"pre-release markers remain"* && "$out" == *"rolled back"* ]] && ok "a header the script cannot rewrite is detected and rolled back" || bad "unrewritable header is detected" "rc=$rc; $(printf '%s' "$out" | tail -3 | tr '\n' '|')"
 [[ "$(tree_sum)" == "$before" ]] && ok "that rollback is also byte-for-byte" || bad "that rollback is also byte-for-byte"
 
+fresh; sed -i '/^| Depends on |/s/ |$/ (unreleased) |/' "$R/v1/specs/clipboard/extraction.md"; ev model-a; before="$(tree_sum)"   # evidence AFTER the edit, or it is (correctly) stale
+out="$(release --apply --version 1.6.0 --skip-suites)"; rc=$?
+[[ $rc -eq 1 && "$out" == *"pre-release markers remain"* && "$out" == *"rolled back"* ]] && ok "a marker the script cannot rewrite in a Depends-on row is detected and rolled back" || bad "unrewritable Depends-on marker detected" "rc=$rc"
+[[ "$(tree_sum)" == "$before" ]] && ok "that rollback is byte-for-byte too" || bad "Depends-on rollback is byte-for-byte"
+
+# Narrowness: only the rows a release is meant to change are rewritten. A row that merely MENTIONS the version stays.
+fresh; ev model-a; printf '| Note | The 1.6.0-dev suffix is explained here |\n' >> "$R/v1/feature/logging.md"
+release --apply --version 1.6.0 --skip-suites >/dev/null
+grep -qF '| Note | The 1.6.0-dev suffix is explained here |' "$R/v1/feature/logging.md" && ok "an unrelated table row that mentions the version is left alone" || bad "an unrelated table row is left alone"
+
 # The post-apply evidence check is a safety net: a version bump never changes hashed text, so it cannot
 # fire in normal use. Simulate a future bug in apply_edits that touches hashed text, and confirm the net holds.
 fresh; ev model-a; before="$(tree_sum)"
@@ -168,6 +202,73 @@ before="$(tree_sum)"
 out="$(release --apply --version 1.6.0 --skip-suites)"; rc=$?
 [[ $rc -eq 1 && "$out" == *"acceptance evidence no longer verifies"* && "$out" == *"rolled back"* ]] && ok "an apply that alters hashed text is caught by the post-apply evidence check" || bad "post-apply evidence check" "rc=$rc; $(printf '%s' "$out" | tail -3 | tr '\n' '|')"
 [[ "$(tree_sum)" == "$before" ]] && ok "and that rollback is byte-for-byte too" || bad "that rollback is byte-for-byte"
+
+section "Options that take a value must fail, never hang"
+fresh
+for opt in --version --date --min-models --min-samples --evidence --waive-evidence; do
+  out="$(timeout 10 bash "$R/v1/utils/sw-release.sh" --check "$opt" 2>&1)"; rc=$?
+  [[ $rc -eq 2 && "$out" == *"$opt needs a value"* ]] && ok "$opt with no value: usage error (not a hang)" || bad "$opt with no value" "rc=$rc (124 means it hung)"
+done
+
+section "The evidence waiver"
+REASON="Maintainer reports manual testing against Gemini; no results recorded"
+fresh
+expect "a reason is required (too short)" 2 "at least 15 characters" -- --check --skip-suites --waive-evidence "short"
+expect "a reason with a backslash is refused" 2 "no backslash" -- --check --skip-suites --waive-evidence 'has a \ backslash in the reason'
+expect "a multi-line reason is refused" 2 "no backslash" -- --check --skip-suites --waive-evidence $'first line of the reason\nsecond line'
+expect "no evidence, with a waiver: the gate opens" 0 "RELEASE GATE: OPEN" -- --check --skip-suites --waive-evidence "$REASON"
+expect "and it shows the waiver plainly" 0 "WAIVED   evidence: $REASON" -- --check --skip-suites --waive-evidence "$REASON"
+expect "and says what the waiver does not cover" 0 "every other condition still applies" -- --check --skip-suites --waive-evidence "$REASON"
+before="$(tree_sum)"; release --check --skip-suites --waive-evidence "$REASON" >/dev/null; [[ "$(tree_sum)" == "$before" ]] && ok "--check with a waiver still changes nothing" || bad "--check with a waiver changes nothing"
+
+# A waiver waives ONLY the absence of results.
+fresh; mkdir "$R/v2"
+expect "waiver does not waive the plan-7.2 v2 check" 1 "plan 7.2 forbids" -- --check --skip-suites --waive-evidence "$REASON"
+fresh; sed -i '2s/.*/Version: 1.6.0/' "$R/v1/prompt.md"
+expect "waiver does not waive an already-released prompt" 1 "expected 'Version: X.Y.Z-dev'" -- --check --skip-suites --waive-evidence "$REASON"
+fresh; sed -i 's/^## Unreleased.*/## Something else/' "$R/CHANGELOG.md"
+expect "waiver does not waive a missing Unreleased section" 1 "no '## Unreleased' section" -- --check --skip-suites --waive-evidence "$REASON"
+fresh; ( cd "$R" && git init -q && git -c user.name=t -c user.email=t@t add -A && git -c user.name=t -c user.email=t@t commit -q -m init ) ; echo x >> "$R/README.md"
+expect "waiver does not waive a dirty working tree" 1 "uncommitted changes" -- --check --skip-suites --waive-evidence "$REASON"
+fresh
+expect "waiver does not waive a --version mismatch" 1 "does not match" -- --check --skip-suites --waive-evidence "$REASON" --version 1.7.0
+
+# ...and it cannot hide recorded results that fail or are unusable.
+fresh; ev model-a '{"complete": false}'
+expect "waiver cannot hide a partial recorded run" 1 "cannot be used" -- --check --skip-suites --waive-evidence "$REASON"
+fresh; ev model-a '{"results": [{"id": "gate-vague-task", "status": "FAIL", "failures": [], "covers": []}]}'
+expect "waiver cannot hide a recorded failing run" 1 "cannot be used" -- --check --skip-suites --waive-evidence "$REASON"
+fresh; mkdir -p "$R/v1/tests/results"; echo '{not json' > "$R/v1/tests/results/junk.json"
+expect "waiver cannot hide an unreadable evidence file" 1 "cannot be used" -- --check --skip-suites --waive-evidence "$REASON"
+fresh; ev model-a; printf '\nA rule added after the evidence was recorded.\n' >> "$R/v1/prompt.md"
+expect "stale evidence only: the waiver applies" 0 "WAIVED   evidence" -- --check --skip-suites --waive-evidence "$REASON"
+fresh; ev model-a
+out="$(release --check --skip-suites --waive-evidence "$REASON")"
+[[ "$out" == *"is not needed"* && "$out" != *"WAIVED   evidence"* ]] && ok "valid evidence: the waiver is ignored and no waiver is recorded" || bad "waiver ignored when evidence is valid" "$out"
+
+section "--apply with a waiver"
+fresh; mkdir "$R/v2"; before="$(tree_sum)"
+release --apply --version 1.6.0 --skip-suites --waive-evidence "$REASON" >/dev/null
+[[ "$(tree_sum)" == "$before" ]] && ok "a closed condition still stops --apply, and nothing changes" || bad "closed condition stops --apply"
+fresh; readme_before="$(sha256sum "$R/README.md" | cut -d' ' -f1)"
+out="$(release --apply --version 1.6.0 --date 2026-09-30 --skip-suites --waive-evidence "$REASON")"; rc=$?
+[[ $rc -eq 0 ]] && ok "applies (exit 0)" || bad "applies (exit 0)" "$(printf '%s' "$out" | tail -4)"
+[[ "$(sed -n 2p "$R/v1/prompt.md")" == "Version: 1.6.0" ]] && ok "prompt Version line is 1.6.0" || bad "prompt Version line"
+grep -qF "Stated basis: $REASON." "$R/CHANGELOG.md" && ok "the CHANGELOG records the reason verbatim" || bad "the CHANGELOG records the reason"
+grep -q "No recorded acceptance results match this release; that is a known gap, not a passing result" "$R/CHANGELOG.md" && ok "the CHANGELOG says plainly it is a gap, not a pass" || bad "the CHANGELOG says it is a gap"
+grep -q "Released after the Phase 6 acceptance scenarios passed" "$R/CHANGELOG.md" && bad "the CHANGELOG must NOT claim the scenarios passed" || ok "the CHANGELOG does not claim the scenarios passed"
+grep -q 'Not a release' "$R/CHANGELOG.md" && bad "the 'Not a release' paragraph is gone" || ok "the 'Not a release' paragraph is gone"
+[[ -z "$(find "$R/v1/tests/results" -name '*.json' 2>/dev/null)" ]] && ok "no evidence file was created (the waiver never fabricates results)" || bad "no evidence file was created"
+[[ "$out" == *"WAIVED   released without recorded acceptance results"* ]] && ok "the output says the release was waived" || bad "output says waived"
+bash "$R/v1/utils/sw-lint.sh" >/dev/null 2>&1 && ok "the structure linter passes afterward" || bad "the structure linter passes afterward"
+left="$(grep -rnE '^(Version: .*-(dev|draft)|\| (Framework|Version) \|.*(-dev|-draft|unreleased))' "$R/v1/prompt.md" "$R/v1/feature" "$R/v1/specs")"
+[[ -z "$left" ]] && ok "no pre-release markers remain" || bad "markers remain" "$left"
+[[ "$(sha256sum "$R/README.md" | cut -d' ' -f1)" == "$readme_before" ]] && ok "README.md is untouched" || bad "README.md is untouched"
+out2="$(release --apply --version 1.6.0 --skip-suites --waive-evidence "$REASON")"; rc=$?
+[[ $rc -eq 1 && "$out2" == *"expected 'Version: X.Y.Z-dev'"* ]] && ok "applying twice is refused" || bad "applying twice is refused"
+fresh; ev model-a
+release --apply --version 1.6.0 --skip-suites --waive-evidence "$REASON" >/dev/null
+grep -q "Released after the Phase 6 acceptance scenarios passed" "$R/CHANGELOG.md" && ! grep -qF "$REASON" "$R/CHANGELOG.md" && ok "with valid evidence, the release is recorded as evidence-backed and no waiver is written" || bad "valid evidence: no waiver recorded"
 
 section "Full gate with the real suites (slow)"
 fresh; ev model-a

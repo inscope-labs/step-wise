@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Framework | 1.6.0 (unreleased) |
+| Framework | 1.6.0 |
 | Component | spec `clipboard/extraction` |
-| Version | 1.6.0-draft |
-| Depends on | `clipboard/ledger-format` 1.6.0-draft |
+| Version | 1.6.0 |
+| Depends on | `clipboard/ledger-format` 1.6.0 |
 | Supersedes | nothing |
-| Status | Draft. Loaded on demand. |
+| Status | Released. Loaded on demand. |
 
 Implements plan sections 3.3 (Stage 2), 3.6, 3.7. Reference implementation: `sw_copy_clip` in `v1/utils/clipcopy.sh`. Per 3.7 this **extends** the existing clipboard abstraction. There is no second clipboard implementation.
 

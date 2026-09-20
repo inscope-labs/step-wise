@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Framework | 1.6.0 (unreleased) |
+| Framework | 1.6.0 |
 | Component | spec `clipboard/ledger-format` |
-| Version | 1.6.0-draft |
+| Version | 1.6.0 |
 | Parent feature | `feature:inspection`, `feature:clipboard` |
 | Supersedes | nothing (v1.5.0 has no ledger) |
-| Status | Draft. Loaded on demand. |
+| Status | Released. Loaded on demand. |
 
 Implements plan sections 3.4, 3.5, 3.9, 3.10. Reference implementation: `v1/utils/clipcopy.sh` (`sw_session_start`, `runledger`, `sw_ledger_list`).
 

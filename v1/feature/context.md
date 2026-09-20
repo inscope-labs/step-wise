@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Framework | 1.6.0 (unreleased) |
+| Framework | 1.6.0 |
 | Component | feature `context` (Tier 2) |
-| Version | 1.6.0-dev |
+| Version | 1.6.0 |
 | Depends on | specs `context/loading-rules`, `context/size-limits` |
 | Supersedes | nothing; extends **Contextual Memory** in `v1/prompt.md` |
-| Status | Draft. Loaded on demand. |
+| Status | Released. Loaded on demand. |
 
 Precedence: Prompt > Feature > Specs. Nothing here relaxes a rule in the mandatory prompt.
 

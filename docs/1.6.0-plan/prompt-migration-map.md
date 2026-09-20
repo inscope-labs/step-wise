@@ -1,6 +1,6 @@
-# Prompt migration map: 1.5.0 to 1.6.0-dev
+# Prompt migration map: 1.5.0 to 1.6.0
 
-Traceability for the restructure of `v1/prompt.md` (plan Phase 1). Every named block of the 1.5.0 prompt is listed with where it lives now and what kind of change it got. This was derived by comparing the two files line by line, not from memory. Of 87 non-empty lines in the 1.6.0-dev prompt, 68 are byte-identical to 1.5.0.
+Traceability for the restructure of `v1/prompt.md` (plan Phase 1). Every named block of the 1.5.0 prompt is listed with where it lives now and what kind of change it got. This was derived by comparing the two files line by line, not from memory. Of 87 non-empty lines in the 1.6.0 prompt, 68 are byte-identical to 1.5.0.
 
 **Kinds of change**
 
@@ -27,7 +27,7 @@ The `Risk:` line of the step format is also unchanged.
 
 ### Clipboard Copy, rule by rule
 
-| 1.5.0 rule | 1.6.0-dev location |
+| 1.5.0 rule | 1.6.0 location |
 |---|---|
 | Copy is additive, never replaces terminal display | prompt `Clipboard`; feature "Always" |
 | Copy is per invocation and requested by the operator with `runcopy -- <command>`; never enabled automatically or assumed | prompt `Clipboard` (now: unless the operator opts in per invocation or enables the session-scoped automatic mode); feature "Manual mode" |
@@ -42,7 +42,7 @@ The `Risk:` line of the step format is also unchanged.
 
 | Block | Change |
 |---|---|
-| Version line | `1.5.0` to `1.6.0-dev` |
+| Version line | `1.5.0` to `1.6.0` |
 | Safety | Last sentence only. It said a credential/privileged-data step "automatically bypasses opt-in clipboard copy (see **Clipboard Copy**)". It now says such a step "never has its output copied to the clipboard, in manual or automatic mode, regardless of operator request (see **Clipboard**)" |
 | Contextual Memory | One sentence appended: also track session state and which optional context is loaded, and keep memory to validated state, not raw output |
 | Default Pattern | Items 6 and 7 changed (classify risk before presenting the step; clipboard and ledger follow **Clipboard** and **Session State**, and credential/privileged-data output is never copied), and one closing sentence added giving the order within every step. Items 1–5 and 8–12 are verbatim |
@@ -57,4 +57,4 @@ The `Risk:` line of the step format is also unchanged.
 
 ## What this does not prove
 
-The linter (`v1/utils/sw-lint.sh`) confirms the required rule strings in `v1/utils/prompt-invariants.txt` are still present. It cannot confirm that a model still behaves the same way. The scenarios in `v1/tests/` are written to test exactly that against a model, but no model has run them yet.
+The linter (`v1/utils/sw-lint.sh`) confirms the required rule strings in `v1/utils/prompt-invariants.txt` are still present. It cannot confirm that a model still behaves the same way. The scenarios in `v1/tests/` are written to test exactly that against a model, but no results from them are recorded (the maintainer reports manual testing against Gemini).
