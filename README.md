@@ -7,9 +7,9 @@ It keeps the human operator in full control of the shell while the AI provides d
 
 The AI proposes. The human executes.
 
-**Status:** `1.5.0` — internal pre-release. All `1.x` releases are minor/patch revisions of the same generation; the framework moves to `2.0.0` only once it has been fully tested end-to-end. See [`CHANGELOG.md`](CHANGELOG.md) for version history.
+**Status:** `1.6.0` — internal pre-release. All `1.x` releases are minor/patch revisions of the same generation; the framework moves to `2.0.0` only once it has been fully tested end-to-end. See [`CHANGELOG.md`](CHANGELOG.md) for version history.
 
-**In progress:** `1.6.0` (see the *Unreleased* section of the changelog). On this branch `v1/prompt.md` is `1.6.0-dev`: the mandatory prompt plus on-demand features and specs, described under [Context Tiers (1.6.0-dev)](#context-tiers-160-dev). It is not released, and it is not the version served from `main` until it is merged.
+**Released:** `1.6.0` (2026-09-20). `v1/prompt.md` is the mandatory prompt plus on-demand features and specs, described under [Context Tiers](#context-tiers). **1.6.0 was released without recorded acceptance results.** The maintainer reports manual testing against Gemini, but no transcripts or results are recorded in this repository and no run of the acceptance runner is on file. The release gate's evidence condition was waived for this release (the CHANGELOG states this and the reason); the gate itself stays in place. What changed, and how to pin `1.5.0`: [`docs/1.6.0-plan/compatibility.md`](docs/1.6.0-plan/compatibility.md).
 
 ---
 
@@ -102,9 +102,9 @@ This runs the script's self-test, which confirms the bypass notice fires and ter
 bash v1/utils/clipcopy-test.sh
 ```
 
-## Session Ledger (1.6.0 preview)
+## Session Ledger
 
-> **Preview.** Implemented and tested in `v1/utils/clipcopy.sh`. The `1.6.0-dev` prompt loads it on demand through `feature:clipboard` and `feature:inspection`; nothing here is released. Design: [`docs/1.6.0-plan/`](docs/1.6.0-plan/), [`v1/specs/clipboard/`](v1/specs/clipboard/), [`v1/feature/`](v1/feature/).
+> Implemented and tested in `v1/utils/clipcopy.sh`, and opt-in: the `1.6.0` prompt loads it on demand through `feature:clipboard` and `feature:inspection`, and without a session steps are ordinary commands. Tested on bash 5.2 on Linux; **not yet run on Termux or macOS bash 3.2.** Design: [`docs/1.6.0-plan/`](docs/1.6.0-plan/), [`v1/specs/clipboard/`](v1/specs/clipboard/), [`v1/feature/`](v1/feature/).
 
 The ledger keeps each step's raw output outside the chat, so you can inspect it and copy exactly what you choose. Running a command and copying its output are separate operations.
 
@@ -137,7 +137,7 @@ Properties worth knowing:
 - A ledger failure never blocks the command, and never changes what you see or its exit status.
 - Limits: output is captured as combined stdout and stderr through a pipe, like `runcopy`, so interactive programs, pagers, and terminal colors are not supported. A label describes the *command*, so it cannot tell you a non-sensitive command printed something sensitive — inspect an entry before extracting it.
 
-## Context Tiers (1.6.0-dev)
+## Context Tiers
 
 The mandatory prompt stays bounded, and capability detail loads only when a task needs it.
 
@@ -158,7 +158,7 @@ bash v1/utils/sw-lint-test.sh          # proves each lint rule can actually fail
 ```
 The linter checks structure, not model behavior. Behavior is covered by the acceptance tests in the next section.
 
-## Behavioral acceptance tests (1.6.0-dev)
+## Behavioral acceptance tests
 
 The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 16 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, and `Blocked` on a missing reference, plus the quoting of ledger metadata) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves features and specs from this repository, so it also records what the model chose to load.
 
@@ -171,7 +171,7 @@ python3 v1/tests/test_sw_acceptance.py               # tests of the harness itse
 
 Model output varies, so each scenario runs several samples. A check marked *critical* (the safety rules) must pass in every sample; the rest must pass in at least `--threshold` of them (default 0.67). A run in which any sample could not complete never reports a pass. A full 3-sample run is on the order of half a million input tokens per model (an estimate, not a measurement). The checks are regular expressions and load logs. They are evidence, not proof, so read the transcript of anything that fails before blaming the model.
 
-**Status:** the harness is tested against a mock server, and each scenario's checks are tested against hand-written good and bad replies. **No real model has run the scenarios yet.**
+**Status:** the harness is tested against a mock server, and each scenario's checks are tested against hand-written good and bad replies. **No results from the runner are recorded.** The maintainer reports manual testing against Gemini, which the runner does not represent: it speaks the Anthropic Messages API only.
 
 Results recorded against the current text are the evidence for a release. Where they go, what counts, and how the release gate uses them: [`v1/tests/results/README.md`](v1/tests/results/README.md) and [`docs/1.6.0-plan/compatibility.md`](docs/1.6.0-plan/compatibility.md). Check the state any time with `bash v1/utils/sw-release.sh --check --skip-suites`.
 

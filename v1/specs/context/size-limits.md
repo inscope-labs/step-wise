@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Framework | 1.6.0 (unreleased) |
+| Framework | 1.6.0 |
 | Component | spec `context/size-limits` |
-| Version | 1.6.0-dev |
+| Version | 1.6.0 |
 | Parent feature | `feature:context` |
 | Supersedes | nothing |
-| Status | Draft. Loaded on demand. |
+| Status | Released. Loaded on demand. |
 
 Implements plan sections 1.3 and 1.9. Checked by `bash v1/utils/sw-lint.sh`, which reads the `limit:` lines below, so this file is the single source of truth for the numbers.
 

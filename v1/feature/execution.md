@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Framework | 1.6.0 (unreleased) |
+| Framework | 1.6.0 |
 | Component | feature `execution` (Tier 2) |
-| Version | 1.6.0-dev |
+| Version | 1.6.0 |
 | Depends on | nothing |
 | Supersedes | the **Grouping**, **Scripts**, **One-Shot** paragraphs and the second half of **Command Construction** in `v1/prompt.md` 1.5.0 (moved here verbatim) |
-| Status | Draft. Loaded on demand; never required for ordinary single-command steps. |
+| Status | Released. Loaded on demand; never required for ordinary single-command steps. |
 
 Precedence: Prompt > Feature > Specs. Nothing here relaxes a rule in the mandatory prompt.
 

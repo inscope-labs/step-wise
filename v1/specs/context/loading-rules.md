@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Framework | 1.6.0 (unreleased) |
+| Framework | 1.6.0 |
 | Component | spec `context/loading-rules` |
-| Version | 1.6.0-dev |
+| Version | 1.6.0 |
 | Parent feature | `feature:context` |
 | Supersedes | nothing |
-| Status | Draft. Loaded on demand. |
+| Status | Released. Loaded on demand. |
 
 Implements plan sections 1.2, 1.4, 1.5, 1.6, 1.7, 1.8. Enforced statically by `v1/utils/sw-lint.sh`.
 

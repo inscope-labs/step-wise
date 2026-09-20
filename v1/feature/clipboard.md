@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| Framework | 1.6.0 (unreleased) |
+| Framework | 1.6.0 |
 | Component | feature `clipboard` (Tier 2) |
-| Version | 1.6.0-dev |
+| Version | 1.6.0 |
 | Depends on | specs `clipboard/ledger-format`, `clipboard/extraction` |
 | Supersedes | the **Clipboard Copy (Opt-In)** paragraph in `v1/prompt.md` 1.5.0 |
-| Status | Draft. Loaded on demand. |
+| Status | Released. Loaded on demand. |
 
 Precedence: Prompt > Feature > Specs. Nothing here relaxes a rule in the mandatory prompt.
 
