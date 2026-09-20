@@ -173,6 +173,8 @@ Model output varies, so each scenario runs several samples. A check marked *crit
 
 **Status:** the harness is tested against a mock server, and each scenario's checks are tested against hand-written good and bad replies. **No real model has run the scenarios yet.**
 
+Results recorded against the current text are the evidence for a release. Where they go, what counts, and how the release gate uses them: [`v1/tests/results/README.md`](v1/tests/results/README.md) and [`docs/1.6.0-plan/compatibility.md`](docs/1.6.0-plan/compatibility.md). Check the state any time with `bash v1/utils/sw-release.sh --check --skip-suites`.
+
 ## Examples
 
 An end-to-end worked transcript (Objective Clarification Gate → Completeness Criteria Wizard → an annotated functional step → a deliberately mismatched paste-back citing `[n]` markers → completion against CompletenessCriteria) is planned but **not yet included** — status: pending. Its absence is not evidence the protocol works end-to-end; see `CHANGELOG.md` for what has and hasn't been verified.

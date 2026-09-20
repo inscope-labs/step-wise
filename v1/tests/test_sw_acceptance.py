@@ -15,6 +15,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -441,6 +442,231 @@ class TestRunnerEndToEnd(unittest.TestCase):
         rc, out, err, m, _ = self.go([{"id": "bad", "turns": [{"operator": "x", "checks": [{"type": "nope"}]}]}], lambda b, i: text_resp("x"))
         self.assertEqual(rc, 2)
         self.assertEqual(len(m.requests), 0)
+
+
+def copy_tree(dst):
+    """A private copy of the real v1/ so tests can change files freely."""
+    shutil.copytree(os.path.dirname(HERE), os.path.join(dst, "v1"), ignore=shutil.ignore_patterns("__pycache__", "results"))
+    return os.path.join(dst, "v1")
+
+
+def make_result(v1, model="model-a", **over):
+    h = sw.compute_hashes(v1)
+    d = {"model": model, "samples": 3, "threshold": 0.67, "complete": True, "run_at": "2026-09-19T00:00:00Z",
+         "prompt_version": "Version: 1.6.0-dev", "prompt_sha256": h["prompt_sha256"], "tiers_sha256": h["tiers_sha256"],
+         "scenarios_sha256": h["scenarios_sha256"], "scenario_ids": h["scenario_ids"],
+         "results": [{"id": i, "status": "PASS", "failures": [], "covers": []} for i in h["scenario_ids"]]}
+    d.update(over)
+    return d
+
+
+class TestHashes(unittest.TestCase):
+    def setUp(self):
+        self.td = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.td, True)
+        self.v1 = copy_tree(self.td)
+
+    def edit(self, rel, fn):
+        path = os.path.join(self.v1, rel)
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(fn(text))
+
+    def test_cli_prints_hashes_without_a_key(self):
+        rc, out, err = run_main(["--hash"], env_key=None)
+        self.assertEqual(rc, 0, err)
+        d = json.loads(out)
+        self.assertEqual(set(d), {"prompt_sha256", "tiers_sha256", "scenarios_sha256", "scenario_ids"})
+        self.assertEqual(len(d["prompt_sha256"]), 64)
+        self.assertEqual(d["scenario_ids"], sorted(d["scenario_ids"]))
+        self.assertGreaterEqual(len(d["scenario_ids"]), 15)
+
+    def test_hashes_are_deterministic(self):
+        self.assertEqual(sw.compute_hashes(self.v1), sw.compute_hashes(self.v1))
+
+    def test_a_release_edit_does_not_change_the_hashes(self):
+        before = sw.compute_hashes(self.v1)
+        self.edit("prompt.md", lambda t: t.replace("Version: 1.6.0-dev", "Version: 1.6.0", 1))
+        for rel in ("feature/clipboard.md", "specs/clipboard/ledger-format.md"):
+            self.edit(rel, lambda t: re.sub(r"^\| Framework \|.*$", "| Framework | 1.6.0 |", t, flags=re.M))
+            self.edit(rel, lambda t: re.sub(r"^\| Version \|.*$", "| Version | 1.6.0 |", t, flags=re.M))
+            self.edit(rel, lambda t: re.sub(r"^\| Status \|.*$", "| Status | Released. Loaded on demand. |", t, flags=re.M))
+        self.assertEqual(sw.compute_hashes(self.v1), before)
+
+    def test_a_real_content_change_changes_the_hashes(self):
+        base = sw.compute_hashes(self.v1)
+        self.edit("prompt.md", lambda t: t + "\nAn extra rule.\n")
+        h = sw.compute_hashes(self.v1)
+        self.assertNotEqual(h["prompt_sha256"], base["prompt_sha256"])
+        self.assertNotEqual(h["tiers_sha256"], base["tiers_sha256"])
+        self.assertEqual(h["scenarios_sha256"], base["scenarios_sha256"])
+
+    def test_a_feature_or_spec_change_changes_only_the_tier_hash(self):
+        base = sw.compute_hashes(self.v1)
+        self.edit("feature/logging.md", lambda t: t + "\nMore.\n")
+        h = sw.compute_hashes(self.v1)
+        self.assertEqual(h["prompt_sha256"], base["prompt_sha256"])
+        self.assertNotEqual(h["tiers_sha256"], base["tiers_sha256"])
+        base = h
+        self.edit("specs/context/size-limits.md", lambda t: t + "\nMore.\n")
+        self.assertNotEqual(sw.compute_hashes(self.v1)["tiers_sha256"], base["tiers_sha256"])
+
+    def test_a_scenario_or_prelude_change_changes_the_scenario_hash(self):
+        base = sw.compute_hashes(self.v1)
+        self.edit("tests/scenarios/gate-vague-task.json", lambda t: t.replace("fix my server", "fix my laptop"))
+        self.assertNotEqual(sw.compute_hashes(self.v1)["scenarios_sha256"], base["scenarios_sha256"])
+        base = sw.compute_hashes(self.v1)
+        self.edit("tests/preludes.json", lambda t: t.replace("jq", "ripgrep"))
+        self.assertNotEqual(sw.compute_hashes(self.v1)["scenarios_sha256"], base["scenarios_sha256"])
+
+
+class TestResultsRecordProvenance(unittest.TestCase):
+    def run_one(self, extra):
+        ws = Workspace([scn([{"type": "matches", "pattern": "good"}])])
+        m = Mock(lambda b, i: text_resp("good"))
+        self.addCleanup(ws.close)
+        self.addCleanup(m.close)
+        with tempfile.TemporaryDirectory() as td:
+            res = os.path.join(td, "r.json")
+            rc, out, err = run_main(["--scenarios", ws.scn, "--api-base", m.url, "--samples", "1", "--results", res] + FAST + extra)
+            self.assertEqual(rc, 0, out + err)
+            with open(res) as fh:
+                return json.load(fh)
+
+    def test_results_carry_the_hashes_and_run_metadata(self):
+        d = self.run_one([])
+        cur = sw.compute_hashes()
+        for k in ("prompt_sha256", "tiers_sha256", "scenarios_sha256"):
+            self.assertEqual(d[k], cur[k])
+        self.assertTrue(d["complete"])
+        self.assertRegex(d["run_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertTrue(d["prompt_version"].startswith("Version:"))
+        self.assertNotIn(KEY, json.dumps(d))
+
+    def test_a_filtered_run_is_recorded_as_partial(self):
+        self.assertFalse(self.run_one(["--filter", "t-one"])["complete"])
+
+
+class TestEvidence(unittest.TestCase):
+    def setUp(self):
+        self.td = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.td, True)
+        self.v1 = copy_tree(self.td)
+        self.dir = os.path.join(self.td, "results")
+        os.makedirs(self.dir)
+
+    def put(self, name, **over):
+        d = make_result(self.v1, **over)
+        with open(os.path.join(self.dir, name + ".json"), "w") as f:
+            json.dump(d, f)
+        return d
+
+    def verify(self, **kw):
+        return sw.verify_evidence(self.dir, v1=self.v1, **kw)
+
+    def assertBlocked(self, needle, **kw):
+        problems, _, _ = self.verify(**kw)
+        self.assertTrue(any(needle in p for p in problems), "wanted %r in %r" % (needle, problems))
+
+    def test_good_evidence_passes(self):
+        self.put("a")
+        problems, notes, models = self.verify()
+        self.assertEqual((problems, notes, models), ([], [], {"model-a"}))
+
+    def test_no_evidence_is_blocked(self):
+        self.assertBlocked("no acceptance evidence")
+
+    def test_a_missing_directory_is_blocked_not_a_crash(self):
+        shutil.rmtree(self.dir)
+        self.assertBlocked("no acceptance evidence")
+
+    def test_failing_scenario_is_blocked_and_named(self):
+        d = make_result(self.v1)
+        d["results"][3]["status"] = "FAIL"
+        with open(os.path.join(self.dir, "a.json"), "w") as f:
+            json.dump(d, f)
+        self.assertBlocked("not passing: " + d["results"][3]["id"])
+
+    def test_an_error_status_is_not_a_pass(self):
+        d = make_result(self.v1)
+        d["results"][0]["status"] = "ERROR"
+        with open(os.path.join(self.dir, "a.json"), "w") as f:
+            json.dump(d, f)
+        self.assertBlocked("not passing")
+
+    def test_missing_scenario_in_results_is_blocked(self):
+        d = make_result(self.v1)
+        d["results"].pop()
+        with open(os.path.join(self.dir, "a.json"), "w") as f:
+            json.dump(d, f)
+        self.assertBlocked("do not cover every scenario")
+
+    def test_scenario_list_mismatch_is_blocked(self):
+        self.put("a", scenario_ids=["only-one"])
+        self.assertBlocked("scenario list differs")
+
+    def test_partial_run_is_blocked(self):
+        self.put("a", complete=False)
+        self.assertBlocked("partial run")
+
+    def test_too_few_samples_is_blocked(self):
+        self.put("a", samples=1)
+        self.assertBlocked("need at least 3")
+        self.assertBlocked("need at least 5", min_samples=5)
+
+    def test_lowered_threshold_is_blocked(self):
+        self.put("a", threshold=0.1)
+        self.assertBlocked("below the required")
+
+    def test_stale_evidence_is_ignored_with_a_note_and_then_blocks(self):
+        self.put("a")
+        with open(os.path.join(self.v1, "prompt.md"), "a") as f:
+            f.write("\nA new rule added after the evidence was recorded.\n")
+        problems, notes, _ = self.verify()
+        self.assertTrue(any("stale" in n and "prompt" in n for n in notes), notes)
+        self.assertTrue(any("0 model(s)" in p for p in problems), problems)
+
+    def test_evidence_survives_a_version_bump(self):
+        self.put("a")
+        path = os.path.join(self.v1, "prompt.md")
+        with open(path) as f:
+            t = f.read()
+        with open(path, "w") as f:
+            f.write(t.replace("Version: 1.6.0-dev", "Version: 1.6.0", 1))
+        self.assertEqual(self.verify()[0], [])
+
+    def test_min_models_counts_distinct_models(self):
+        self.put("a", model="model-a")
+        self.put("a-again", model="model-a")
+        self.assertBlocked("1 model(s) have passing evidence, need at least 2", min_models=2)
+        self.put("b", model="model-b")
+        self.assertEqual(self.verify(min_models=2)[0], [])
+
+    def test_a_failing_current_file_blocks_even_if_enough_models_passed(self):
+        self.put("good", model="model-a")
+        d = make_result(self.v1, model="model-b")
+        d["results"][0]["status"] = "FAIL"
+        with open(os.path.join(self.dir, "bad.json"), "w") as f:
+            json.dump(d, f)
+        self.assertBlocked("model-b", min_models=1)
+
+    def test_garbage_files_are_reported_not_crashed_on(self):
+        with open(os.path.join(self.dir, "junk.json"), "w") as f:
+            f.write("{not json")
+        with open(os.path.join(self.dir, "list.json"), "w") as f:
+            f.write("[1, 2]")
+        problems, _, _ = self.verify()
+        self.assertEqual(sum("unreadable" in p for p in problems), 2, problems)
+
+    def test_cli_exit_codes_and_messages(self):
+        real_results = os.path.join(self.td, "cli")
+        os.makedirs(real_results)
+        rc, out, err = run_main(["--verify-evidence", real_results], env_key=None)
+        self.assertEqual(rc, 1)
+        self.assertIn("BLOCKED", out)
+        rc, out, err = run_main(["--verify-evidence", real_results, "--min-models", "2"], env_key=None)
+        self.assertEqual(rc, 1)
 
 
 STEP_OK = ("Step 1 — Show filesystem usage for /home\n\nCommand:\n```bash\ndf -h /home\n```\n\nWhat it does: Prints usage.\n"
