@@ -160,7 +160,7 @@ The linter checks structure, not model behavior. Behavior is covered by the acce
 
 ## Behavioral acceptance tests (1.6.0-dev)
 
-The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 15 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, and `Blocked` on a missing reference) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves features and specs from this repository, so it also records what the model chose to load.
+The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 16 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, and `Blocked` on a missing reference, plus the quoting of ledger metadata) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves features and specs from this repository, so it also records what the model chose to load.
 
 ```bash
 python3 v1/tests/sw_acceptance.py --dry-run          # validate the scenarios; no key, no network

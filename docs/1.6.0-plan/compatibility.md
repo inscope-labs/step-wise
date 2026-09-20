@@ -33,7 +33,7 @@ These are deliberate. Each is also in the CHANGELOG.
 
 ## 3. What does not change
 
-The objective and completeness gates, one functional step per turn, numbered expected-output markers and `[n]` citations, output validation, state progression, adaptive planning, destructive and privileged confirmation, and the rule that shell output is primary evidence. 68 of the prompt's 87 non-empty lines are byte-identical to 1.5.0, and a linter checks that 43 required rule strings are still present. That proves the text is there, not that a model follows it. The acceptance scenarios exist to measure that.
+The objective and completeness gates, one functional step per turn, numbered expected-output markers and `[n]` citations, output validation, state progression, adaptive planning, destructive and privileged confirmation, and the rule that shell output is primary evidence. 68 of the prompt's 87 non-empty lines are byte-identical to 1.5.0, and a linter checks that 43 required rule strings are still present in the prompt (and 6 more in the features). That proves the text is there, not that a model follows it. The acceptance scenarios exist to measure that.
 
 ## 4. Migration by audience
 
