@@ -22,6 +22,9 @@ Python 3 standard library only.
 """
 
 import argparse
+import datetime
+import glob
+import hashlib
 import json
 import os
 import re
@@ -249,6 +252,89 @@ def eval_check(chk, text, fetched):
     raise ScenarioError("unknown check type %r" % t)
 
 
+# --------------------------------------------------------------------------- evidence
+
+# Lines that change on release without changing behavior. They are left out of the
+# hashes, so recording a version bump or a status word does not invalidate evidence.
+_RELEASE_LINES = re.compile(r"^(Version: |\| (Framework|Version|Status) \|)")
+
+
+def _normalized(text):
+    return "\n".join(l for l in text.split("\n") if not _RELEASE_LINES.match(l))
+
+
+def compute_hashes(v1=V1):
+    """Hashes that tie recorded results to the exact text and scenarios they were run against."""
+    prompt = os.path.join(v1, "prompt.md")
+    files = [prompt] + sorted(glob.glob(os.path.join(v1, "feature", "*.md"))) + sorted(glob.glob(os.path.join(v1, "specs", "*", "*.md")))
+    tiers = hashlib.sha256()
+    for path in files:
+        rel = os.path.relpath(path, v1).replace(os.sep, "/")
+        with open(path, encoding="utf-8") as f:
+            tiers.update(rel.encode("utf-8") + b"\0" + _normalized(f.read()).encode("utf-8") + b"\0")
+    with open(prompt, encoding="utf-8") as f:
+        prompt_h = hashlib.sha256(_normalized(f.read()).encode("utf-8")).hexdigest()
+    scn_dir = os.path.join(v1, "tests", "scenarios")
+    scn = hashlib.sha256()
+    ids = []
+    for path in sorted(glob.glob(os.path.join(scn_dir, "*.json"))) + [os.path.join(v1, "tests", "preludes.json")]:
+        with open(path, "rb") as f:
+            data = f.read()
+        scn.update(os.path.basename(path).encode("utf-8") + b"\0" + data + b"\0")
+        if path.endswith(".json") and os.sep + "scenarios" + os.sep in path:
+            ids.append(json.loads(data.decode("utf-8")).get("id"))
+    return {"prompt_sha256": prompt_h, "tiers_sha256": tiers.hexdigest(),
+            "scenarios_sha256": scn.hexdigest(), "scenario_ids": sorted(ids)}
+
+
+def verify_evidence(directory, min_models=1, min_samples=3, min_threshold=0.67, v1=V1):
+    """Checks recorded results against the CURRENT prompt, tiers and scenarios.
+    Returns (problems, notes, passing_models). Any current-but-failing file is a problem:
+    to proceed, re-run it or remove it, which leaves the failure visible in version control.
+    This guards against accidents and stale results. It cannot stop someone who hand-edits a file."""
+    cur = compute_hashes(v1)
+    problems, notes, models = [], [], set()
+    files = sorted(glob.glob(os.path.join(directory, "*.json")))
+    if not files:
+        problems.append("no acceptance evidence in %s (run the scenarios with --results and commit the file there)" % directory)
+    for path in files:
+        label = os.path.basename(path)
+        try:
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+            if not isinstance(d, dict):
+                raise ValueError("not an object")
+        except (OSError, ValueError) as e:
+            problems.append("%s: unreadable evidence file (%s)" % (label, e))
+            continue
+        stale = [k for k in ("prompt_sha256", "tiers_sha256", "scenarios_sha256") if d.get(k) != cur[k]]
+        if stale:
+            notes.append("%s: stale, ignored (%s changed since it was recorded)" % (label, ", ".join(x.replace("_sha256", "") for x in stale)))
+            continue
+        why = []
+        if d.get("complete") is not True:
+            why.append("partial run (it used --filter)")
+        if not isinstance(d.get("samples"), int) or d["samples"] < min_samples:
+            why.append("%s sample(s), need at least %d" % (d.get("samples"), min_samples))
+        if not isinstance(d.get("threshold"), (int, float)) or d["threshold"] < min_threshold:
+            why.append("threshold %s is below the required %s" % (d.get("threshold"), min_threshold))
+        if sorted(d.get("scenario_ids", [])) != cur["scenario_ids"]:
+            why.append("scenario list differs from the current scenarios")
+        results = d.get("results", [])
+        if sorted(str(r.get("id")) for r in results if isinstance(r, dict)) != cur["scenario_ids"]:
+            why.append("results do not cover every scenario")
+        bad = [str(r.get("id")) for r in results if isinstance(r, dict) and r.get("status") != "PASS"]
+        if bad:
+            why.append("not passing: " + ", ".join(bad))
+        if why:
+            problems.append("%s (%s): %s" % (label, d.get("model"), "; ".join(why)))
+        else:
+            models.add(d.get("model"))
+    if len(models) < min_models:
+        problems.append("%d model(s) have passing evidence, need at least %d" % (len(models), min_models))
+    return problems, notes, models
+
+
 # --------------------------------------------------------------------------- model I/O
 
 def call_api(cfg, payload):
@@ -407,7 +493,24 @@ def main(argv=None):
     ap.add_argument("--retry-sleep", type=float, default=2.0)
     ap.add_argument("--dry-run", action="store_true", help="validate scenarios and print the plan; no network, no key")
     ap.add_argument("--list", action="store_true", help="list scenarios and exit")
+    ap.add_argument("--hash", action="store_true", help="print the hashes that tie results to the current prompt, tiers and scenarios, then exit")
+    ap.add_argument("--verify-evidence", metavar="DIR", default="", help="check recorded results in DIR against the current prompt, tiers and scenarios, then exit")
+    ap.add_argument("--min-models", type=int, default=1, help="with --verify-evidence: models that must have passing evidence")
+    ap.add_argument("--min-samples", type=int, default=3, help="with --verify-evidence: samples per scenario each result must have used")
     args = ap.parse_args(argv)
+
+    if args.hash:
+        print(json.dumps(compute_hashes(), indent=2))
+        return 0
+    if args.verify_evidence:
+        problems, notes, models = verify_evidence(args.verify_evidence, args.min_models, args.min_samples)
+        for n in notes:
+            print("note: " + n)
+        for p in problems:
+            print("BLOCKED: " + p)
+        if not problems:
+            print("Evidence OK: %d model(s) passed every scenario on the current prompt: %s" % (len(models), ", ".join(sorted(map(str, models)))))
+        return 1 if problems else 0
 
     scenarios, preludes, errors = load_scenarios(args.scenarios)
     if errors:
@@ -470,7 +573,10 @@ def main(argv=None):
     print("\n%d/%d scenario(s) passed." % (len(scenarios) - bad, len(scenarios)))
     if args.results:
         with open(args.results, "w", encoding="utf-8") as f:
-            json.dump({"model": args.model, "samples": args.samples, "threshold": args.threshold, "results": results}, f, indent=2)
+            meta = compute_hashes()
+            json.dump({"model": args.model, "samples": args.samples, "threshold": args.threshold,
+                       "complete": not args.filter, "run_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "prompt_version": sed_line2(system), **meta, "results": results}, f, indent=2)
     return 0 if bad == 0 else 1
 
 
