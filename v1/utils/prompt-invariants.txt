@@ -1,7 +1,9 @@
 # Rule text that MUST remain in v1/prompt.md, checked literally by sw-lint.sh.
 # Section 1 is 1.5.0 behavior that 1.6.0 must preserve (plan 0.1 and 6.4).
 # Section 2 is new 1.6.0 behavior that must not be lost.
-# Lines starting with # are comments. Matching is exact and case-sensitive.
+# A line is checked against the prompt. A line of the form @path::text is checked against that
+# file under v1/ instead (for rules that live in a feature). Lines starting with # are comments.
+# Matching is exact and case-sensitive.
 # Rewording a rule in the prompt means updating this file in the same commit, on purpose.
 
 # --- 1. Preserved from 1.5.0 ---
@@ -50,3 +52,13 @@ never relax a rule here unless this prompt explicitly delegates it
 never persistent
 One-shot mode is an explicit change of execution mode, never an inference.
 Never preload
+
+# --- 3. Feature rules that protect the operator's shell ---
+# --objective and --step sit inside the command the operator runs, so a model must treat them as
+# untrusted text. Double quotes would let backticks or $(...) execute.
+@feature/clipboard.md::Put each in **single quotes**
+@feature/clipboard.md::no single quote, backtick, `$`, backslash, or newline
+@feature/clipboard.md::Any other label is treated as sensitive and nothing is copied
+@feature/inspection.md::Put each in **single quotes**
+@feature/inspection.md::no single quote, backtick, `$`, backslash, or newline
+@feature/inspection.md::An unrecognized label is treated as sensitive

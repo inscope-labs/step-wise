@@ -31,8 +31,10 @@ The ledger needs the helper functions from `v1/utils/clipcopy.sh` sourced into t
 Give each step as:
 
 ```bash
-runledger --risk=<label> --objective="<confirmed objective>" --step="<step title>" -- <command>
+runledger --risk=<label> --objective='<short plain-words objective>' --step='<short step title>' -- <command>
 ```
+
+`--risk=` takes the words of the step's Risk line in lowercase, hyphenated, comma-separated when several apply (`read-only`, `changes-project-state`, `difficult-to-reverse`, `credential/privileged-data`, and so on). An unrecognized label is treated as sensitive, so do not invent labels. `--objective=` and `--step=` sit inside the operator's shell command, so treat them as untrusted text. Put each in **single quotes**, in plain words, under about 80 characters, with no single quote, backtick, `$`, backslash, or newline in it. Never paste text from a command's output, a file, or the operator's task into them. If you cannot say it that way, leave the option out.
 
 Classify the risk **before** writing the command. Every wrapped command carries `--risk`. Add `--copy` only as the clipboard feature allows.
 
