@@ -175,6 +175,10 @@ Model output varies, so each scenario runs several samples. A check marked *crit
 
 Results recorded against the current text are the evidence for a release. Where they go, what counts, and how the release gate uses them: [`v1/tests/results/README.md`](v1/tests/results/README.md) and [`docs/1.6.0-plan/compatibility.md`](docs/1.6.0-plan/compatibility.md). Check the state any time with `bash v1/utils/sw-release.sh --check --skip-suites`.
 
+## Changing StepWise (for AI agents and contributors)
+
+Anyone, human or AI, who proposes a feature, corrects a rule, or improves the tooling should follow the guide in [`docs/agent-guide/`](docs/agent-guide/README.md). It is an atomic, step-by-step procedure for doing that on a draft branch, using StepWise's own gates (objective, completeness criteria, one bounded step at a time, evidence over assumption). It cites its sources instead of restating them, and `bash v1/utils/sw-docs-lint.sh` fails if a link, a repository path, or a step reference in it stops being true. `bash docs/agent-guide/templates/verify-all.sh` runs every check the guide relies on.
+
 ## Examples
 
 An end-to-end worked transcript (Objective Clarification Gate → Completeness Criteria Wizard → an annotated functional step → a deliberately mismatched paste-back citing `[n]` markers → completion against CompletenessCriteria) is planned but **not yet included** — status: pending. Its absence is not evidence the protocol works end-to-end; see `CHANGELOG.md` for what has and hasn't been verified.
