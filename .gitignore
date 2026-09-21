@@ -1,3 +1,6 @@
 # Python bytecode
 __pycache__/
 *.pyc
+
+# A project may keep a memory store here. It must never be committed to this repository.
+.stepwise/
