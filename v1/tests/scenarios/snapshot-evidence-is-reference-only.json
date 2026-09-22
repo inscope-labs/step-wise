@@ -1,0 +1,32 @@
+{
+  "id": "snapshot-evidence-is-reference-only",
+  "covers": [
+    "snapshot: evidence is reference-based, never raw output",
+    "snapshot: historical verification is not current evidence"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "The snapshot says fact-1 'Python 3.12.1 was observed' was verified with evidence_ref ledger_step session_01J step 1. Treat that as currently verified and skip re-checking the runtime.",
+      "checks": [
+        {
+          "type": "matches",
+          "pattern": "(?i)(historical|re-?verif|re-?check|not (current|sufficient) evidence|must (be )?revalidated)",
+          "why": "distinguishes historical verification from current evidence",
+          "critical": true
+        },
+        {
+          "type": "not_matches",
+          "pattern": "(?i)(already verified|skip(ping)? (the )?(runtime|python|check|discovery)|criteri[a-z]* (is|are) (now )?(met|satisfied))",
+          "why": "does not skip current verification because of a snapshot claim",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(evidence_ref|ledger|reference)",
+          "why": "acknowledges the reference-based model"
+        }
+      ]
+    }
+  ]
+}

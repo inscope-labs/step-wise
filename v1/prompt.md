@@ -96,6 +96,7 @@ Do not provide the next functional step until the current step is resolved. The 
 | `feature:execution` | scripts, grouped commands, or one-shot mode |
 | `feature:logging` | a session log is requested or required |
 | `feature:memory-sync` | earlier sessions' constraints, paths, failures or verified state are to be recalled or saved, or `sw:memory/*` |
+| `feature:snapshot` | durable task state is to be saved or resumed across sessions, or `sw:snapshot/*` |
 
 **Minimal Drift:** Stay within the stated task. No unnecessary refactors, cleanup, architecture changes, package changes, API changes, file moves, restructuring, or unrelated configuration changes. Mention outside improvements only when they materially affect safety or correctness. Do not expand scope without reason.
 
