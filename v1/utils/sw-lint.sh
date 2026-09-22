@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# StepWise — static checks for the three-tier context system (plan Phases 1, 6.1).
+# StepWise — static checks for the four-tier context system (plan Phases 1, 6.1; extended prompt added 1.6.1).
 #
 # Usage:
 #   bash v1/utils/sw-lint.sh            # run all checks; exit 1 if any fail
@@ -29,6 +29,7 @@ for a in "$@"; do
 done
 
 PROMPT="$V1/prompt.md"
+EXTENDED="$V1/extended.md"
 FEAT="$V1/feature"
 SPEC="$V1/specs"
 LIMITS="$SPEC/context/size-limits.md"
@@ -60,11 +61,11 @@ fi
 limit_of() { grep -E "^limit: $1 = [0-9]+\$" "$LIMITS" 2>/dev/null | head -1 | sed 's/.*= //'; }
 if [[ ! -f "$LIMITS" ]]; then
   err "size-limits spec not found: $LIMITS"
-  L_PROMPT=""; L_FEAT=""; L_SPEC=""; L_OPT=""
+  L_PROMPT=""; L_EXT=""; L_FEAT=""; L_SPEC=""; L_OPT=""
 else
-  L_PROMPT="$(limit_of prompt_bytes)"; L_FEAT="$(limit_of feature_bytes)"
+  L_PROMPT="$(limit_of prompt_bytes)"; L_EXT="$(limit_of extended_bytes)"; L_FEAT="$(limit_of feature_bytes)"
   L_SPEC="$(limit_of spec_section_bytes)"; L_OPT="$(limit_of max_optional_bytes)"
-  for pair in "prompt_bytes:$L_PROMPT" "feature_bytes:$L_FEAT" "spec_section_bytes:$L_SPEC" "max_optional_bytes:$L_OPT"; do
+  for pair in "prompt_bytes:$L_PROMPT" "extended_bytes:$L_EXT" "feature_bytes:$L_FEAT" "spec_section_bytes:$L_SPEC" "max_optional_bytes:$L_OPT"; do
     [[ -z "${pair#*:}" ]] && err "missing 'limit: ${pair%%:*} = N' line in size-limits spec"
   done
 fi
@@ -74,6 +75,15 @@ PSIZE="$(fsize "$PROMPT")"
 if [[ -n "$L_PROMPT" ]]; then
   if (( PSIZE <= L_PROMPT )); then ok "prompt size $PSIZE <= $L_PROMPT bytes"
   else err "prompt is $PSIZE bytes, limit is $L_PROMPT"; fi
+fi
+if [[ ! -f "$EXTENDED" ]]; then
+  err "extended prompt not found: $EXTENDED"; ESIZE=0
+else
+  ESIZE="$(fsize "$EXTENDED")"
+  if [[ -n "$L_EXT" ]]; then
+    if (( ESIZE <= L_EXT )); then ok "extended prompt size $ESIZE <= $L_EXT bytes"
+    else err "extended prompt is $ESIZE bytes, limit is $L_EXT"; fi
+  fi
 fi
 MAXF=0; MAXFN=""; MAXS=0; MAXSN=""
 while IFS= read -r f; do
@@ -116,23 +126,28 @@ check_header() { # file label kind
   fi
 }
 E4=$ERRS
+if [[ -f "$EXTENDED" ]]; then check_header "$EXTENDED" "extended prompt"; fi
 NF=0; NS=0
 while IFS= read -r f; do [[ -z "$f" ]] && continue; check_header "$f" "feature $(basename "$f")"; NF=$((NF+1)); done < <(feature_files)
 while IFS= read -r f; do [[ -z "$f" ]] && continue; check_header "$f" "spec ${f#"$SPEC"/}"; NS=$((NS+1)); done < <(spec_files)
 (( ERRS == E4 )) && ok "checked headers of $NF features and $NS specs"
 
-# --- 5. Index integrity (prompt <-> features) ---------------------------------
+# --- 5. Index integrity (extended prompt <-> features) -------------------------
 E5=$ERRS
-INDEXED="$(grep -oE '^\| `feature:[a-z0-9-]+`' "$PROMPT" | sed -E 's/^\| `feature://; s/`$//' | sort -u)"
-MENTIONED="$(grep -oE 'feature:[a-z0-9-]+' "$PROMPT" | sed 's/^feature://' | sort -u)"
-for n in $INDEXED; do [[ -f "$FEAT/$n.md" ]] || err "prompt index lists feature:$n but $FEAT/$n.md does not exist"; done
-for n in $MENTIONED; do [[ -f "$FEAT/$n.md" ]] || err "prompt mentions feature:$n but $FEAT/$n.md does not exist"; done
-while IFS= read -r f; do
-  [[ -z "$f" ]] && continue
-  n="$(basename "$f" .md)"
-  grep -qE "^\| \`feature:$n\` \|" "$PROMPT" || err "feature $n.md exists but is not in the prompt's feature index"
-done < <(feature_files)
-(( ERRS == E5 )) && ok "prompt feature index matches the feature files ($(echo "$INDEXED" | wc -w | tr -d ' ') indexed)"
+if [[ ! -f "$EXTENDED" ]]; then
+  err "cannot verify the feature index: extended prompt not found"
+else
+  INDEXED="$(grep -oE '^\| `feature:[a-z0-9-]+`' "$EXTENDED" | sed -E 's/^\| `feature://; s/`$//' | sort -u)"
+  MENTIONED="$( { grep -oE 'feature:[a-z0-9-]+' "$PROMPT" "$EXTENDED"; } | sed 's/^[^:]*:feature:/feature:/; s/^feature://' | sort -u)"
+  for n in $INDEXED; do [[ -f "$FEAT/$n.md" ]] || err "extended prompt index lists feature:$n but $FEAT/$n.md does not exist"; done
+  for n in $MENTIONED; do [[ -f "$FEAT/$n.md" ]] || err "prompt or extended prompt mentions feature:$n but $FEAT/$n.md does not exist"; done
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    n="$(basename "$f" .md)"
+    grep -qE "^\| \`feature:$n\` \|" "$EXTENDED" || err "feature $n.md exists but is not in the extended prompt's feature index"
+  done < <(feature_files)
+  (( ERRS == E5 )) && ok "extended prompt feature index matches the feature files ($(echo "$INDEXED" | wc -w | tr -d ' ') indexed)"
+fi
 
 # --- 6. Spec references (features <-> specs) ----------------------------------
 E6=$ERRS
@@ -152,10 +167,16 @@ while IFS= read -r f; do
 done < <(spec_files)
 (( ERRS == E6 )) && ok "every referenced spec resolves and every spec is reachable"
 
-# --- 7. Hierarchy: Prompt -> Feature -> Spec, one way -------------------------
+# --- 7. Hierarchy: Prompt -> Extended -> Feature -> Spec, one way --------------
 E7=$ERRS
 if grep -qE 'spec:[a-z0-9-]+/[a-z0-9-]+' "$PROMPT"; then
   err "prompt references a spec directly (Prompt -> Spec is not allowed): $(grep -oE 'spec:[a-z0-9-]+/[a-z0-9-]+' "$PROMPT" | head -1)"
+fi
+if grep -qE '^\| `feature:[a-z0-9-]+`' "$PROMPT"; then
+  err "prompt contains a feature index row; the index belongs in extended.md only, as of 1.6.1"
+fi
+if [[ -f "$EXTENDED" ]] && grep -qE 'spec:[a-z0-9-]+/[a-z0-9-]+' "$EXTENDED"; then
+  err "extended prompt references a spec directly (Extended -> Spec is not allowed): $(grep -oE 'spec:[a-z0-9-]+/[a-z0-9-]+' "$EXTENDED" | head -1)"
 fi
 while IFS= read -r f; do
   [[ -z "$f" ]] && continue
@@ -163,6 +184,7 @@ while IFS= read -r f; do
   for n in $(grep -oE 'feature:[a-z0-9-]+' "$f" | sed 's/^feature://' | sort -u); do
     [[ "$n" != "$self" ]] && err "feature $self.md points sideways to feature:$n (Feature -> Feature is not allowed)"
   done
+  grep -q 'extended\.md' "$f" && err "feature $self.md references extended.md (Feature -> Extended is not allowed)"
 done < <(feature_files)
 while IFS= read -r f; do
   [[ -z "$f" ]] && continue
@@ -172,7 +194,7 @@ while IFS= read -r f; do
     err "spec $rel contains a feature: address outside its 'Parent feature' row"
   fi
 done < <(spec_files)
-(( ERRS == E7 )) && ok "hierarchy checked (Prompt -> Feature -> Spec only)"
+(( ERRS == E7 )) && ok "hierarchy checked (Prompt -> Extended -> Feature -> Spec only)"
 
 # --- 8. Curated 1.5.0 invariants still present in the prompt -------------------
 if [[ ! -f "$INVARIANTS" ]]; then
@@ -277,13 +299,15 @@ if (( REPORT == 1 )); then
   echo "== Measured sizes (source bytes; tokens are an ESTIMATE at bytes/4) =="
   printf '%-34s %8s %10s\n' item bytes est.tokens
   printf '%-34s %8s %10s\n' "prompt (always loaded)" "$PSIZE" "$((PSIZE / 4))"
+  printf '%-34s %8s %10s\n' "extended (loaded after turn 1)" "$ESIZE" "$((ESIZE / 4))"
   while IFS= read -r f; do [[ -z "$f" ]] && continue; s="$(fsize "$f")"; printf '%-34s %8s %10s\n' "feature/$(basename "$f")" "$s" "$((s / 4))"; done < <(feature_files)
   while IFS= read -r f; do [[ -z "$f" ]] && continue; s="$(fsize "$f")"; printf '%-34s %8s %10s\n' "specs/${f#"$SPEC"/}" "$s" "$((s / 4))"; done < <(spec_files)
-  TOTAL=$PSIZE
+  TOTAL=$((PSIZE + ESIZE))
   for f in $(feature_files) $(spec_files); do TOTAL=$((TOTAL + $(fsize "$f"))); done
   echo
-  printf '%-34s %8s %10s\n' "normal session (prompt only)" "$PSIZE" "$((PSIZE / 4))"
-  printf '%-34s %8s %10s\n' "worst case (+largest feature+spec)" "$((PSIZE + OPT))" "$(((PSIZE + OPT) / 4))"
+  printf '%-34s %8s %10s\n' "first turn (prompt only)" "$PSIZE" "$((PSIZE / 4))"
+  printf '%-34s %8s %10s\n' "steady state (prompt+extended)" "$((PSIZE + ESIZE))" "$(((PSIZE + ESIZE) / 4))"
+  printf '%-34s %8s %10s\n' "worst case (+largest feature+spec)" "$((PSIZE + ESIZE + OPT))" "$(((PSIZE + ESIZE + OPT) / 4))"
   printf '%-34s %8s %10s\n' "everything (forbidden by the rules)" "$TOTAL" "$((TOTAL / 4))"
 fi
 

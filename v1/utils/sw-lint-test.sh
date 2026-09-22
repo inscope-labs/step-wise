@@ -32,7 +32,7 @@ echo "== Baseline =="
 fresh
 out="$(lint)"; rc=$?
 [[ $rc -eq 0 ]] && ok "real tree passes all checks" || bad "real tree passes all checks" "$(printf '%s' "$out" | grep FAIL | head -3)"
-bash "$REAL_V1/utils/sw-lint.sh" --report 2>&1 | grep -q "normal session (prompt only)" && ok "--report prints the size table" || bad "--report prints the size table"
+bash "$REAL_V1/utils/sw-lint.sh" --report 2>&1 | grep -q "first turn (prompt only)" && ok "--report prints the size table" || bad "--report prints the size table"
 bash "$REAL_V1/utils/sw-lint.sh" --bogus >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "unknown argument exits 2" || bad "unknown argument exits 2"
 
 echo; echo "== Sizes and limits =="
@@ -56,10 +56,10 @@ fresh; sed -i '/^| Status |/d' "$TMP/v1/feature/context.md"
 expect_fail "feature missing a required header row is rejected" "header row 'Status' is missing"
 
 echo; echo "== Index and reachability =="
-fresh; sed -i 's/^| `feature:logging` |/| `feature:ghost` | nothing |\n| `feature:logging` |/' "$TMP/v1/prompt.md"
+fresh; sed -i 's/^| `feature:logging` |/| `feature:ghost` | nothing |\n| `feature:logging` |/' "$TMP/v1/extended.md"
 expect_fail "index entry with no file is rejected" "feature:ghost"
 fresh; sed 's/`logging`/`newthing`/' "$TMP/v1/feature/logging.md" > "$TMP/v1/feature/newthing.md"
-expect_fail "feature file missing from the prompt index is rejected" "not in the prompt's feature index"
+expect_fail "feature file missing from the extended prompt index is rejected" "not in the extended prompt's feature index"
 fresh; printf '\nSee `spec:clipboard/nope` for more.\n' >> "$TMP/v1/feature/clipboard.md"
 expect_fail "feature referencing a nonexistent spec is rejected" "spec:clipboard/nope"
 fresh; sed 's/`clipboard\/extraction`/`clipboard\/orphan`/' "$TMP/v1/specs/clipboard/extraction.md" > "$TMP/v1/specs/clipboard/orphan.md"
