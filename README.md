@@ -163,14 +163,15 @@ Turn it on for a session with `sw:memory/on`. The design in one paragraph:
 The mandatory prompt stays bounded, and capability detail loads only when a task needs it.
 
 ```text
-v1/prompt.md        Tier 1  always loaded: the operating contract, gates, safety, validation, feature index
-v1/feature/*.md     Tier 2  on demand: clipboard, inspection, context, execution, logging
-v1/specs/*/*.md     Tier 3  on demand, one section at a time: ledger format, extraction grammar, loading rules, size limits
+v1/prompt.md         Tier 1    always loaded from turn one: the operating contract, gates, safety, validation
+v1/extended.md       Tier 1.5  loaded once, after the operator's first message: feature index, full state machine, full Default Pattern
+v1/feature/*.md      Tier 2    on demand: clipboard, inspection, context, execution, logging, memory-sync
+v1/specs/*/*.md      Tier 3    on demand, one section at a time: ledger format, extraction grammar, loading rules, size limits
 ```
 
-Loading is one-way (Prompt → Feature → Spec) and smallest-first. Precedence is Prompt > Feature > Specs, so a lower tier can never relax a rule in the prompt. Features and specs resolve relative to where the prompt was loaded from, so a pinned copy of the prompt loads pinned references. If a needed reference cannot be loaded, the assistant says so and stops rather than guessing.
+Loading is one-way (Prompt → Extended → Feature → Spec) and smallest-first. Precedence is Prompt > Extended > Feature > Specs, so a lower tier can never relax a rule in the prompt. Features and specs resolve relative to where the prompt was loaded from, so a pinned copy of the prompt loads pinned references. If a needed feature or spec cannot be loaded, the assistant says so and stops rather than guessing; a missing extended prompt instead degrades the session to the mandatory prompt alone, since nothing safety-critical is defined only there.
 
-The mandatory prompt did not shrink: it is about 5% larger than 1.5.0 because the tier machinery costs more than the moved text saved. What tiers buy is that the new 1.6.0 capability (roughly 30 KB) stays out of it. Numbers and limits: [`v1/specs/context/size-limits.md`](v1/specs/context/size-limits.md). What moved where, paragraph by paragraph: [`docs/1.6.0-plan/prompt-migration-map.md`](docs/1.6.0-plan/prompt-migration-map.md).
+1.6.1 added the extended prompt to hold the feature index and other detail without growing the mandatory prompt: `v1/prompt.md` is back to roughly its 1.5.0 size even after gaining a welcome message, risk-tiered batching, and an explicit allowance for off-task operator questions. Numbers and limits: [`v1/specs/context/size-limits.md`](v1/specs/context/size-limits.md). What moved where for 1.6.0, paragraph by paragraph: [`docs/1.6.0-plan/prompt-migration-map.md`](docs/1.6.0-plan/prompt-migration-map.md).
 
 Check the structure with:
 ```bash
@@ -181,7 +182,7 @@ The linter checks structure, not model behavior. Behavior is covered by the acce
 
 ## Behavioral acceptance tests
 
-The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 20 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, and `Blocked` on a missing reference, plus the quoting of ledger metadata) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves features and specs from this repository, so it also records what the model chose to load.
+The linter checks structure. These check behavior. [`v1/tests/`](v1/tests/) holds 28 scripted scenarios (objective and criteria gates, one step per turn with numbered markers, destructive and privileged confirmation, marker citation, session state, automatic copy, the sensitive-step bypass, on-demand loading, `Blocked` on a missing feature or spec versus the extended prompt's own degrade-not-Blocked behavior, the welcome message, off-task operator questions, snapshot/resume safety, and the quoting of ledger metadata) and a runner that plays them against a model. The runner uses `v1/prompt.md` as the system prompt and a simulated `fetch_reference` tool that serves the extended prompt, features, and specs from this repository, so it also records what the model chose to load.
 
 ```bash
 python3 v1/tests/sw_acceptance.py --dry-run          # validate the scenarios; no key, no network
