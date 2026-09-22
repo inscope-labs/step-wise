@@ -1,0 +1,21 @@
+{
+  "id": "extended-loaded-after-first-message",
+  "covers": [
+    "1.6.1 extended prompt is loaded once, after the operator's first substantive message"
+  ],
+  "turns": [
+    {
+      "operator": "Task: check how much free disk space is left on /home. Success: I can see the percentage of the filesystem holding /home that is used.",
+      "checks": [
+        {
+          "type": "fetched",
+          "includes": [
+            "extended"
+          ],
+          "why": "loads the extended prompt once the operator has sent a first substantive message",
+          "critical": true
+        }
+      ]
+    }
+  ]
+}

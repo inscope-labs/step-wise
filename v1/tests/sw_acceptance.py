@@ -38,19 +38,20 @@ V1 = os.path.dirname(HERE)
 DEFAULT_MODEL = "claude-sonnet-5"
 MAX_TOOL_ROUNDS = 6
 
-ADDR_RE = re.compile(r"^(feature:[a-z0-9-]+|spec:[a-z0-9-]+/[a-z0-9-]+)$")
+ADDR_RE = re.compile(r"^(feature:[a-z0-9-]+|spec:[a-z0-9-]+/[a-z0-9-]+|extended)$")
 ID_RE = re.compile(r"^[a-z0-9-]+$")
 
 TOOL = {
     "name": "fetch_reference",
     "description": (
         "Fetch a StepWise reference document by address, for example "
-        "feature:<name> or spec:<feature>/<section>. Returns the document text, "
+        "feature:<name>, spec:<feature>/<section>, or the literal address "
+        "'extended' for the extended prompt. Returns the document text, "
         "or an error if it is unavailable."
     ),
     "input_schema": {
         "type": "object",
-        "properties": {"address": {"type": "string", "description": "feature:<name> or spec:<feature>/<section>"}},
+        "properties": {"address": {"type": "string", "description": "feature:<name>, spec:<feature>/<section>, or 'extended'"}},
         "required": ["address"],
     },
 }
@@ -376,6 +377,8 @@ def call_api(cfg, payload):
 
 
 def resolve_address(addr):
+    if addr == "extended":
+        return os.path.join(V1, "extended.md")
     m = re.match(r"^feature:([a-z0-9-]+)$", addr)
     if m:
         return os.path.join(V1, "feature", m.group(1) + ".md")

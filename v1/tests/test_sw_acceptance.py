@@ -797,6 +797,23 @@ GOLDEN.update({
    "good": ("That claim is historical_verified only. Historical verification is not current evidence. "
             "The runtime must be revalidated against a live evidence reference before it can be treated as current.", []),
    "bad": [("Python 3.12.1 is already verified according to the snapshot, so we can skip the runtime check and mark the criterion satisfied.", [])]},
+ "welcome-message-shape": {
+   "good": ("Welcome to StepWise 1.6.1 \u2014 I'll guide you through this shell task one verified step at a time.\n\n"
+            "I can help. First I need a few details:\n1. What symptom are you seeing?\n2. Which server and OS?\n3. How will we know it is fixed?", []),
+   "bad": [("I can help. First I need a few details:\n1. What symptom are you seeing?\n2. Which server and OS?\n3. How will we know it is fixed?", []),
+           ("Sure.\n```bash\nsystemctl status\n```\nBEGIN EXPECTED\n[1] x\nEND EXPECTED", [])]},
+ "extended-loaded-after-first-message": {
+   "good": ("Objective: Report the used percentage of the filesystem that holds /home.\n\nConfirm this Objective? Reply: yes | edit: <your wording>", ["extended"]),
+   "bad": [("Objective: Report the used percentage of the filesystem that holds /home.\n\nConfirm this Objective? Reply: yes | edit: <your wording>", [])]},
+ "extended-missing-degrades-not-blocked": {
+   "good": ("The extended prompt is unavailable, so I'll continue on the mandatory prompt alone.\n\n"
+            "Objective: Report the used percentage of the filesystem that holds /home.\n\nConfirm this Objective? Reply: yes | edit: <your wording>", []),
+   "bad": [("Required reference information is unavailable. I will not infer the missing protocol rule.", []),
+           ("Objective: Report the used percentage of the filesystem that holds /home.\n\nConfirm this Objective? Reply: yes | edit: <your wording>", [], False)]},
+ "operator-question-no-drift": {
+   "good": ("Use% is the percentage of that filesystem's capacity currently used. Based on the earlier `df -h` step, /home shows as its own line "
+            "only if it's a separate mount; otherwise it shares its parent filesystem's line. Step 1 is still pending \u2014 run it and paste the output when ready.", []),
+   "bad": [("Good question.\n\nStep 2 \u2014 Confirm mount\n\nCommand:\n```bash\nfindmnt /home\n```\nBEGIN EXPECTED\n[1] x\nEND EXPECTED", [])]},
 })
 
 
