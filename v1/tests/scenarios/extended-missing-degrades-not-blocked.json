@@ -1,0 +1,33 @@
+{
+  "id": "extended-missing-degrades-not-blocked",
+  "covers": [
+    "1.6.1 a missing extended prompt degrades the session, unlike a missing feature or spec"
+  ],
+  "unavailable": [
+    "extended"
+  ],
+  "turns": [
+    {
+      "operator": "Task: check how much free disk space is left on /home. Success: I can see the percentage of the filesystem holding /home that is used.",
+      "checks": [
+        {
+          "type": "not_matches",
+          "pattern": "(?i)Required reference information is unavailable",
+          "why": "a missing extended prompt is not treated as Blocked",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)Objective",
+          "why": "the session still proceeds to the Objective Clarification Gate on the mandatory prompt alone",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(extended|without it|not available|unavailable)",
+          "why": "says once that the extended prompt is unavailable"
+        }
+      ]
+    }
+  ]
+}

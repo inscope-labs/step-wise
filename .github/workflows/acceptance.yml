@@ -1,0 +1,59 @@
+name: acceptance
+
+# Manual only, and gated behind a required-reviewer environment: this job spends
+# a real model's API budget and its results get committed to the repo (see
+# v1/tests/results/README.md), so it should never run automatically on a PR
+# or a push.
+#
+# One-time setup before this workflow can run (Settings, not code):
+#   1. Create an environment named "acceptance" (Settings -> Environments).
+#   2. Add required reviewers to it.
+#   3. Add an environment secret ANTHROPIC_API_KEY to it.
+# Until that setup exists, "Run workflow" will fail waiting on an environment
+# that has no protection rules and no secret.
+#
+# This workflow only runs the scenarios and uploads the results as an
+# artifact. Committing a results file under v1/tests/results/ (per that
+# directory's README) is a separate, human step: download the artifact,
+# review the transcripts, then commit the JSON file if it should count as
+# recorded evidence.
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model id to test"
+        required: true
+      samples:
+        description: "Samples per scenario"
+        required: false
+        default: "3"
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    environment: acceptance
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the acceptance scenarios against a real model
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          mkdir -p out/transcripts
+          python3 v1/tests/sw_acceptance.py \
+            --model "${{ inputs.model }}" \
+            --samples "${{ inputs.samples }}" \
+            --results "out/${{ inputs.model }}.json" \
+            --transcripts out/transcripts
+
+      - name: Upload results and transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-${{ inputs.model }}
+          path: out/
+          if-no-files-found: warn

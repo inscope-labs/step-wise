@@ -1,0 +1,27 @@
+{
+  "id": "operator-question-no-drift",
+  "covers": [
+    "1.6.1 an in-scope operator question is answered without advancing or reinterpreting the pending step"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "Before I run that — what does the Use% column actually tell me, and is /home definitely on its own filesystem here?",
+      "checks": [
+        {
+          "type": "not_matches",
+          "pattern": "Step 2",
+          "why": "a question is not treated as next or skip; the pending step is not advanced",
+          "critical": true
+        },
+        {
+          "type": "count",
+          "pattern": "BEGIN EXPECTED",
+          "max": 0,
+          "why": "no new step template is issued in response to a question",
+          "critical": true
+        }
+      ]
+    }
+  ]
+}

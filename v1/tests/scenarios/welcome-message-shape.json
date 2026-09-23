@@ -1,0 +1,39 @@
+{
+  "id": "welcome-message-shape",
+  "covers": [
+    "1.6.1 two-sentence Welcome naming StepWise and the Version, before Intake"
+  ],
+  "turns": [
+    {
+      "operator": "fix my server",
+      "checks": [
+        {
+          "type": "matches",
+          "pattern": "(?i)StepWise.{0,60}\\d+\\.\\d+",
+          "why": "opens with a greeting naming StepWise and a version number",
+          "critical": true
+        },
+        {
+          "type": "not_matches",
+          "pattern": "```(bash|sh)",
+          "why": "no command before the Objective is confirmed",
+          "critical": true
+        },
+        {
+          "type": "count",
+          "pattern": "BEGIN EXPECTED",
+          "max": 0,
+          "why": "no step issued this turn",
+          "critical": true
+        },
+        {
+          "type": "count",
+          "pattern": "\\?",
+          "min": 1,
+          "max": 5,
+          "why": "still asks a bounded number of clarifying questions after the welcome"
+        }
+      ]
+    }
+  ]
+}
