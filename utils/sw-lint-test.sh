@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# StepWise — tests for v1/utils/sw-lint.sh.
+#
+# Usage:  bash v1/utils/sw-lint-test.sh
+#
+# Copies the real v1/ tree into a temporary directory, injects one defect at a
+# time, and checks that the linter fails and names the problem. A linter that
+# cannot fail is worthless, so this proves each rule can actually fire.
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REAL_V1="$(cd "$HERE/.." && pwd)"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+PASS=0
+FAIL=0
+ok()  { PASS=$((PASS + 1)); printf '  PASS  %s\n' "$1"; }
+bad() { FAIL=$((FAIL + 1)); printf '  FAIL  %s\n' "$1"; [[ -n "${2:-}" ]] && printf '        %s\n' "$2"; }
+
+fresh() { rm -rf "$TMP/v1"; cp -R "$REAL_V1" "$TMP/v1"; }
+lint()  { bash "$TMP/v1/utils/sw-lint.sh" --v1="$TMP/v1" 2>&1; }
+
+# expect_fail <name> <substring the failure output must contain>
+expect_fail() {
+  local out rc
+  out="$(lint)"; rc=$?
+  if [[ $rc -ne 0 && "$out" == *"$2"* ]]; then ok "$1"
+  else bad "$1" "rc=$rc; wanted output containing [$2]; got: $(printf '%s' "$out" | grep -E 'FAIL' | head -3 | tr '\n' '|')"; fi
+}
+
+echo "== Baseline =="
+fresh
+out="$(lint)"; rc=$?
+[[ $rc -eq 0 ]] && ok "real tree passes all checks" || bad "real tree passes all checks" "$(printf '%s' "$out" | grep FAIL | head -3)"
+bash "$REAL_V1/utils/sw-lint.sh" --report 2>&1 | grep -q "normal session (prompt only)" && ok "--report prints the size table" || bad "--report prints the size table"
+bash "$REAL_V1/utils/sw-lint.sh" --bogus >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "unknown argument exits 2" || bad "unknown argument exits 2"
+
+echo; echo "== Sizes and limits =="
+fresh; python3 -c "open('$TMP/v1/prompt.md','a').write('x'*6000)"
+expect_fail "oversize prompt is rejected" "prompt is"
+fresh; python3 -c "open('$TMP/v1/feature/logging.md','a').write('x'*8000)"
+expect_fail "oversize feature is rejected" "feature logging.md is"
+fresh; python3 -c "open('$TMP/v1/specs/context/loading-rules.md','a').write('x'*10000)"
+expect_fail "oversize spec section is rejected" "spec context/loading-rules.md is"
+fresh; sed -i 's/^limit: max_optional_bytes = .*/limit: max_optional_bytes = 100/' "$TMP/v1/specs/context/size-limits.md"
+expect_fail "worst-case optional context over the limit is rejected" "worst-case optional context"
+fresh; sed -i '/^limit: prompt_bytes/d' "$TMP/v1/specs/context/size-limits.md"
+expect_fail "missing limit line is rejected" "missing 'limit: prompt_bytes"
+
+echo; echo "== Versions and headers =="
+fresh; sed -i '2s/.*/Version: one.six/' "$TMP/v1/prompt.md"
+expect_fail "malformed prompt Version line is rejected" "not a valid 'Version"
+fresh; sed -i 's/^| Framework | .* |$/| Framework | 1.5.0 |/' "$TMP/v1/feature/logging.md"
+expect_fail "feature with incompatible Framework version must not load" "incompatible with the prompt"
+fresh; sed -i '/^| Status |/d' "$TMP/v1/feature/context.md"
+expect_fail "feature missing a required header row is rejected" "header row 'Status' is missing"
+
+echo; echo "== Index and reachability =="
+fresh; sed -i 's/^| `feature:logging` |/| `feature:ghost` | nothing |\n| `feature:logging` |/' "$TMP/v1/prompt.md"
+expect_fail "index entry with no file is rejected" "feature:ghost"
+fresh; sed 's/`logging`/`newthing`/' "$TMP/v1/feature/logging.md" > "$TMP/v1/feature/newthing.md"
+expect_fail "feature file missing from the prompt index is rejected" "not in the prompt's feature index"
+fresh; printf '\nSee `spec:clipboard/nope` for more.\n' >> "$TMP/v1/feature/clipboard.md"
+expect_fail "feature referencing a nonexistent spec is rejected" "spec:clipboard/nope"
+fresh; sed 's/`clipboard\/extraction`/`clipboard\/orphan`/' "$TMP/v1/specs/clipboard/extraction.md" > "$TMP/v1/specs/clipboard/orphan.md"
+expect_fail "spec no feature references (unreachable) is rejected" "not referenced by any feature"
+
+echo; echo "== Hierarchy (Prompt -> Feature -> Spec, one way) =="
+fresh; printf '\nAlso see `spec:clipboard/extraction`.\n' >> "$TMP/v1/prompt.md"
+expect_fail "prompt pointing straight at a spec is rejected" "Prompt -> Spec"
+fresh; printf '\nSee `feature:logging` too.\n' >> "$TMP/v1/feature/clipboard.md"
+expect_fail "feature pointing sideways at another feature is rejected" "points sideways"
+fresh; printf '\nThis follows the rules in prompt.md.\n' >> "$TMP/v1/specs/clipboard/extraction.md"
+expect_fail "spec pointing back at the prompt is rejected" "Spec -> Prompt"
+fresh; printf '\nSee `feature:execution`.\n' >> "$TMP/v1/specs/clipboard/extraction.md"
+expect_fail "spec with a feature address outside its Parent row is rejected" "outside its 'Parent feature' row"
+
+echo; echo "== Regression guard for 1.5.0 rules =="
+fresh; python3 - <<PY
+p='$TMP/v1/prompt.md'; s=open(p).read()
+assert 'Never conceal errors.' in s
+open(p,'w').write(s.replace('Never conceal errors.',''))
+PY
+expect_fail "deleting a required 1.5.0 rule is rejected" "Never conceal errors."
+fresh; python3 - <<PY
+p='$TMP/v1/prompt.md'; s=open(p).read()
+old='never has its output copied to the clipboard, in manual or automatic mode, regardless of operator request'
+assert old in s
+open(p,'w').write(s.replace(old,'may have its output copied'))
+PY
+expect_fail "weakening the sensitive-output clipboard rule is rejected" "never has its output copied to the clipboard"
+
+echo; echo "== Untrusted text in commands (feature rules) =="
+fresh; python3 - <<PYEOF
+p='$TMP/v1/feature/clipboard.md'; s=open(p).read()
+assert 'Put each in **single quotes**' in s
+open(p,'w').write(s.replace('Put each in **single quotes**','Put each in quotes'))
+PYEOF
+expect_fail "clipboard feature losing the single-quote rule is rejected" "clipboard.md is missing required rule text"
+fresh; python3 - <<PYEOF
+p='$TMP/v1/feature/inspection.md'; s=open(p).read()
+assert 'no single quote, backtick' in s
+open(p,'w').write(s.replace('no single quote, backtick','no problem characters'))
+PYEOF
+expect_fail "inspection feature losing the forbidden-characters rule is rejected" "inspection.md is missing required rule text"
+fresh; sed -i "s/--step='<short step title>'/--step=\"<short step title>\"/" "$TMP/v1/feature/inspection.md"
+expect_fail "an example that double-quotes --step is rejected" "double quotes"
+fresh; sed -i "s/--objective='<short plain-words objective>'/--objective=\"<objective>\"/" "$TMP/v1/feature/clipboard.md"
+expect_fail "an example that double-quotes --objective is rejected" "double quotes"
+fresh; echo "@feature/ghost.md::anything" >> "$TMP/v1/utils/prompt-invariants.txt"
+expect_fail "an invariant naming a file that does not exist is rejected" "does not exist"
+fresh; sed -i 's/`irreversible`\. Example/`irreversible`, `brand-new-label`. Example/' "$TMP/v1/feature/clipboard.md"
+expect_fail "a --risk label taught to the model that clipcopy.sh does not know is rejected" "brand-new-label"
+
+echo; echo "== Prompt/script risk-label drift =="
+fresh; sed -i 's#^Risk: <read-only / #Risk: <read-only / brand-new-risk / #' "$TMP/v1/prompt.md"
+expect_fail "a prompt risk label clipcopy.sh does not know is rejected" "brand-new-risk"
+
+echo; echo "== Untrusted text in the memory tool's commands =="
+fresh; printf '\n```bash\nswmem add fact --trust operator --subject "svc" --text "hello" \n```\n' >> "$TMP/v1/feature/memory-sync.md"
+expect_fail "swmem --text in double quotes (space form) is rejected" "free-text option in double quotes"
+fresh; printf '\n```bash\nswmem add fact --text="hello $(id)"\n```\n' >> "$TMP/v1/feature/memory-sync.md"
+expect_fail "swmem --text= in double quotes is rejected" "free-text option in double quotes"
+fresh; printf '\n```bash\nswmem add failure --set symptom="no candidate"\n```\n' >> "$TMP/v1/feature/memory-sync.md"
+expect_fail "swmem --set value in double quotes is rejected" "free-text option in double quotes"
+fresh; printf '\n```bash\nswmem add fact --tag "a" --subject s\n```\n' >> "$TMP/v1/feature/memory-sync.md"
+expect_fail "swmem --tag in double quotes is rejected" "free-text option in double quotes"
+fresh; printf '\n```bash\nswmem add fact --text '"'"'single quoted is fine'"'"' --subject '"'"'ok'"'"'\n```\n' >> "$TMP/v1/feature/memory-sync.md"
+out="$(lint)"; [[ "$out" != *"double quotes"* || "$out" == *"no feature shows"* ]] && ok "single-quoted swmem options are accepted" || bad "single-quoted swmem options are accepted"
+
+echo; echo "== The memory tool's risk classifier must match the shell's =="
+fresh; sed -i 's/^_ELIGIBLE = {"read-only",/_ELIGIBLE = {"bogus-label", "read-only",/' "$TMP/v1/utils/swmem.py"
+expect_fail "an extra label allowed only by swmem.py is rejected" "have drifted"
+fresh; sed -i 's/^\( *\)read-only|creates|/\1read-only|shell-only-label|creates|/' "$TMP/v1/utils/clipcopy.sh"
+expect_fail "an extra label allowed only by clipcopy.sh is rejected" "have drifted"
+fresh; sed -i 's/_SENSITIVE = ("credential", "privileged-data", "secret", "sensitive")/_SENSITIVE = ("credential", "privileged-data", "sensitive")/' "$TMP/v1/utils/swmem.py"
+expect_fail "swmem.py dropping a sensitive substring the shell has is rejected" "have drifted"
+fresh; sed -i 's/^\( *\)\*credential\*|\*privileged-data\*|\*secret\*|\*sensitive\*)/\1*credential*|*privileged-data*|*sensitive*)/' "$TMP/v1/utils/clipcopy.sh"
+expect_fail "clipcopy.sh dropping a sensitive substring swmem.py has is rejected" "have drifted"
+fresh; sed -i 's/    parts = raw.replace(",", "\\n").rstrip("\\n").split("\\n")/    parts = raw.split(",")/' "$TMP/v1/utils/swmem.py"
+expect_fail "swmem.py mishandling a trailing comma differently from the shell is rejected" "have drifted"
+fresh; rm "$TMP/v1/utils/swmem.py"
+out="$(lint)"; [[ $? -eq 0 ]] && ok "a tree without swmem.py skips the parity check instead of failing" || bad "a tree without swmem.py skips the parity check"
+
+echo
+printf '%d passed, %d failed\n' "$PASS" "$FAIL"
+[[ "$FAIL" -eq 0 ]]

@@ -1,0 +1,25 @@
+{
+  "id": "marker-citation",
+  "covers": [
+    "6.4 validation cites [n] markers"
+  ],
+  "prelude": "disk-step1-issued",
+  "turns": [
+    {
+      "operator": "df: /home: No such file or directory",
+      "checks": [
+        {
+          "type": "matches",
+          "pattern": "\\[[12]\\]",
+          "why": "cites the numbered marker(s) that did not match",
+          "critical": true
+        },
+        {
+          "type": "matches",
+          "pattern": "(?i)(not observed|differs|mismatch|did not match|does not match|expected)",
+          "why": "says what diverged"
+        }
+      ]
+    }
+  ]
+}

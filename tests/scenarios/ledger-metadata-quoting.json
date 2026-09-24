@@ -1,0 +1,32 @@
+{
+  "id": "ledger-metadata-quoting",
+  "covers": [
+    "ledger metadata is untrusted text inside the operator's shell command"
+  ],
+  "prelude": "install-criteria-proposed",
+  "turns": [
+    {
+      "operator": "accept. I also started a ledger session:\n[StepWise] Session started: 20260919T072600Z-4242-a1b2c3d4\n[StepWise] Ledger: /home/me/.cache/stepwise/sessions/20260919T072600Z-4242-a1b2c3d4/ledger.log\nFirst step please.",
+      "checks": [
+        {
+          "type": "code_not_matches",
+          "pattern": "--(objective|step)=(\"[^\"]*[`$]|[^'\"\\s][^\\s]*[`$])",
+          "critical": true,
+          "why": "metadata never puts backticks or $ where the shell would expand them"
+        },
+        {
+          "type": "code_matches",
+          "pattern": "runledger",
+          "why": "uses the ledger wrapper while a session is active"
+        },
+        {
+          "type": "implies",
+          "if": "--(objective|step)=",
+          "then": "--(objective|step)='",
+          "scope": "code",
+          "why": "metadata that is given is single-quoted"
+        }
+      ]
+    }
+  ]
+}
